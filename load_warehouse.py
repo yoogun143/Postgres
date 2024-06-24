@@ -1,3 +1,6 @@
+from typing import List
+from typing import Any
+from typing import Dict
 import psycopg2
 import psycopg2.extras as extras
 from psycopg2.extensions import AsIs
@@ -17,51 +20,74 @@ from helper.api_manipulation import api_to_pandas,api_arguments_date_filter
 # from_date='2024-06-01'
 # to_date='2024-06-21'
 
-def api_to_csv(arguments_dict, schema, table, fk_date):
+def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str) -> None:
+    """
+    Fetches data from an API using specified arguments, converts it into a pandas DataFrame,
+    and exports the DataFrame to a CSV file.
 
-    data_path = "csv/{}_{}_{}.csv".format(schema,table,fk_date)
+    Args:
+        arguments_dict (dict): Dictionary containing API request parameters.
+        schema (str): String representing the database schema.
+        table (str): String representing the table name.
+        fk_date (str): String representing the date filter.
+    """
+    data_path = f"csv/{schema}_{table}_{fk_date}.csv"
     os.makedirs(os.path.dirname(data_path), exist_ok=True)
     
     df = api_to_pandas(**arguments_dict, timeout=10)
-    print('Exported {} rows to {}'.format(len(df), data_path))
+    print(f'Exported {len(df)} rows to {data_path}')
 
-def csv_to_staging(schema,table,fk_date):
-    data_path = "csv/{}_{}_{}.csv".format(schema,table,fk_date)
-    # df = pd.read_csv(data_path)
-
+def csv_to_staging(schema: str, table: str, fk_date: str) -> None:
+    """
+    Reads a CSV file and inserts its contents into a staging table in a PostgreSQL database.
+    
+    Args:
+        schema (str): The schema name where the staging table resides.
+        table (str): The name of the staging table to be populated.
+        fk_date (str): A date string used to construct the CSV file name.
+        
+    Returns:
+        None
+    """
+    data_path = f"csv/{schema}_{table}_{fk_date}.csv"
+    
     try:
         config = load_config()
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
                 with open(data_path, "r") as file:
-                    cur.execute("truncate staging.{}".format(table)) 
+                    cur.execute(f"TRUNCATE staging.{table}")
                     cur.copy_expert(
-                        "COPY staging.{} FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'".format(table),
+                        f"COPY staging.{table} FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
                         file,
                     )
-                    # print(cur.statusmessage)
-                    print('Inserted {} rows to staging: {}'.format(cur.rowcount,table))
+                    print(f"Inserted {cur.rowcount} rows to staging: {table}")
 
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
 
-def staging_to_warehouse(schema,table,fk_date):
+def staging_to_warehouse(schema: str, table: str, fk_date: str) -> None:
+    """
+    Reads SQL commands from a file, connects to a PostgreSQL database, and executes the commands to load data from a staging area to a warehouse table.
 
-    commands = sql_to_list('sql/{}/{}/load_warehouse.sql'.format(schema,table))
+    Args:
+        schema (str): The schema name in the database.
+        table (str): The table name in the database.
+        fk_date (str): The foreign key date used in the SQL commands.
+    """
+    commands = sql_to_list(f'sql/{schema}/{table}/load_warehouse.sql')
 
     try:
         config = load_config()
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
-                # Execute each commands individually
                 for command in commands[:-1]:
-                    cur.execute(command,{
-                                        'schema':AsIs(schema)
-                                        ,'table':AsIs(table)
-                                        ,'fk_date':fk_date
-                                        })
-                    print('{} rows: {}.{}'.format(cur.statusmessage,schema,table))
-                    # print(cur.rowcount)                    
+                    cur.execute(command, {
+                        'schema': AsIs(schema),
+                        'table': AsIs(table),
+                        'fk_date': fk_date
+                    })
+                    print(f'{cur.statusmessage} rows: {schema}.{table}')
 
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
