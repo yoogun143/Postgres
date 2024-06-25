@@ -1,2 +1,2 @@
-# Ignore the database configuration file
 database.ini
+__pycache__
