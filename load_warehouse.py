@@ -9,32 +9,47 @@ import pandas as pd
 import os
 
 from helper.config import load_config
-from helper.string_manipulation import sql_to_list
-from helper.api_manipulation import api_to_pandas,api_arguments_date_filter
+from helper.string_manipulation import sql_to_list,get_column_name_from_create_table
+from helper.api_manipulation import api_to_pandas,gen_arguments
 
 # # test strng
+# from datetime import datetime
 # schema='vnd'
-# table='daily_acctno_cashflow'
-# fk_date = 20240621
-# symbol=['MWG','FPT','VNM','VND']
-# from_date='2024-06-01'
-# to_date='2024-06-21'
+# table='dim_symbol'
+# fk_date = datetime.now().strftime('%Y%m%d')
+# floor=['HOSE','HNX','UPCOM','OTC']
+# endpoint= '/v4/stocks'
+# arguments_dict=gen_arguments(endpoint=endpoint,floor=floor)
 
 def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str) -> None:
     """
-    Fetches data from an API using specified arguments, converts it into a pandas DataFrame,
-    and exports the DataFrame to a CSV file.
+    Fetches data from an API endpoint and exports it to a CSV file.
 
-    Args:
-        arguments_dict (dict): Dictionary containing API request parameters.
-        schema (str): String representing the database schema.
-        table (str): String representing the table name.
-        fk_date (str): String representing the date filter.
+    Parameters:
+        arguments_dict (dict): A dictionary containing the arguments required for the API request, including 'baseURL', 'endpoint', 'params_dict', and 'headers'.
+        schema (str): The schema name for the CSV file.
+        table (str): The table name for the CSV file.
+        fk_date (str): The foreign key date used in the CSV file name.
+
+    Returns:
+        None
+
+    Example:
+        api_to_csv({'baseURL': 'https://api.example.com/', 'endpoint': 'data', 'params_dict': {'sort': {'field1': 'asc', 'field2': 'desc'}, 'filter': {'date': '2022-01-01'}}, 'headers': {'Authorization': 'Bearer token'}}, 'schema_name', 'table_name', '2022-01-01')
     """
-    data_path = f"csv/{schema}_{table}_{fk_date}.csv"
+    data_path = f"raw/{schema}_{table}_{fk_date}.csv"
     os.makedirs(os.path.dirname(data_path), exist_ok=True)
     
-    df = api_to_pandas(**arguments_dict, timeout=10)
+    df = api_to_pandas(
+            # baseURL=arguments_dict['baseURL']
+            # , endpoint=arguments_dict['endpoint']
+            # , params_dict=arguments_dict['params_dict']
+            # , headers=arguments_dict['headers']
+            **arguments_dict ##can be used instead of extract key-value from arguments_dict
+            , timeout=10
+            )
+    # df.columns = [x.lower() for x in df.columns]
+    df.to_csv(data_path,index=False)
     print(f'Exported {len(df)} rows to {data_path}')
 
 def csv_to_staging(schema: str, table: str, fk_date: str) -> None:
@@ -49,19 +64,48 @@ def csv_to_staging(schema: str, table: str, fk_date: str) -> None:
     Returns:
         None
     """
-    data_path = f"csv/{schema}_{table}_{fk_date}.csv"
+    data_path = f"raw/{schema}_{table}_{fk_date}.csv"
+    df = pd.read_csv(data_path)
+    df.columns = [x.lower() for x in df.columns] #postgres not like uppercase column name
+
+    commands = sql_to_list(f'etl/sql/{schema}/{table}/create_table.sql')
+    staging_columns = get_column_name_from_create_table(commands[1])
+
+    if len(df) == 0:
+        raise ValueError(f"Check CSV file in {data_path} is empty")
     
+    # Sort Pandas columns based on CREATE TABLE sql statement
+    df = df[staging_columns]
+    df = df.fillna(AsIs('Null'))
+
+    df_columns = list(df)
+    # create (col1,col2,...)
+    columns = ','.join(list(df))
+
+    # create VALUES('%s', '%s",...) one '%s' per column
+    values = "VALUES({})".format(",".join(["%s" for _ in df_columns])) 
+
+    #create INSERT INTO table (columns) VALUES('%s',...)
+    insert_stmt = f"INSERT INTO staging.{table} ({columns}) {values}"
+
     try:
         config = load_config()
         with psycopg2.connect(**config) as conn:
             with conn.cursor() as cur:
-                with open(data_path, "r") as file:
-                    cur.execute(f"TRUNCATE staging.{table}")
-                    cur.copy_expert(
-                        f"COPY staging.{table} FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
-                        file,
-                    )
-                    print(f"Inserted {cur.rowcount} rows to staging: {table}")
+                cur.execute(f"TRUNCATE staging.{table}")
+
+                ### Method 1:copy from pandas
+                extras.execute_batch(cur, insert_stmt, df.values)
+
+                ### Method 2: Copy from csv: not work because cannot control orders of columns
+                # with open(data_path, mode="r", encoding="utf8") as file:
+                    # cur.copy_expert( ## 
+                    #     f"COPY staging.{table} FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
+                    #     file,
+                    # )
+                conn.commit()
+
+                print(f"Inserted {len(df)} rows of csv to staging: {table}")
 
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
@@ -75,7 +119,7 @@ def staging_to_warehouse(schema: str, table: str, fk_date: str) -> None:
         table (str): The table name in the database.
         fk_date (str): The foreign key date used in the SQL commands.
     """
-    commands = sql_to_list(f'sql/{schema}/{table}/load_warehouse.sql')
+    commands = sql_to_list(f'etl/sql/{schema}/{table}/load_warehouse.sql')
 
     try:
         config = load_config()
@@ -92,35 +136,8 @@ def staging_to_warehouse(schema: str, table: str, fk_date: str) -> None:
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
 
-
-def pandas_to_staging(df: pd.DataFrame, table: str) -> None:
-
-    config: dict = load_config()
-    
-    if len(df) == 0:
-        return # Exit function if DataFrame is empty
-        
-    df_columns = list(df)
-    # create (col1,col2,...)
-    columns = ','.join(list(df))
-
-    # create VALUES('%s', '%s",...) one '%s' per column
-    values = "VALUES({})".format(",".join(["%s" for _ in df_columns])) 
-
-    #create INSERT INTO table (columns) VALUES('%s',...)
-    insert_stmt = "INSERT INTO {} ({}) {}".format(table,columns,values)
-
-    try:
-        with psycopg2.connect(**config) as conn:
-            with conn.cursor() as cur:
-                cur.execute("truncate " + table + ";")  # avoiding uploading duplicate data!
-                extras.execute_batch(cur, insert_stmt, df.values)
-                conn.commit()
-    except (Exception, psycopg2.DatabaseError) as error:
-        print(error)
-
 if __name__ == '__main__':
-    arguments_dict=api_arguments_date_filter(['MWG','FPT','VNM','VND'],'2024-06-01','2024-06-21')
+    arguments_dict=gen_arguments(symbol=['MWG','FPT','VNM','VND'],from_date='2024-06-01',to_date='2024-06-21')
     api_to_csv(arguments_dict,'vnd','daily_acctno_cashflow',20240621)
     csv_to_staging('vnd','daily_acctno_cashflow',20240621)
     staging_to_warehouse('vnd','daily_acctno_cashflow',20240621)

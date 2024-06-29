@@ -35,3 +35,24 @@ def join_stock_string(symbol: Union[str, List[str], Tuple[str]]) -> str:
     if isinstance(symbol, (list, tuple)):
         return ','.join(symbol)
     return symbol
+
+def get_column_name_from_create_table(sql_statement: str) -> list:
+    """
+    Extracts column names from a CREATE TABLE SQL statement, excluding 'fk_date'.
+
+    Args:
+        sql_statement (str): The CREATE TABLE SQL statement from which to extract column names.
+
+    Returns:
+        list: A list of column names extracted from the SQL statement, excluding 'fk_date'.
+    """
+    # Define a regular expression pattern to match column names followed by their data types
+    pattern = r'\b(\w+)\s+\b(?:VARCHAR|INT|TEXT|DATE)\b'
+
+    # Use re.findall to find all matches of the pattern in the sql_statement
+    matches = re.findall(pattern, sql_statement)
+
+    # Filter out any matches that are equal to 'fk_date'
+    filtered_matches = [match for match in matches if match != 'fk_date']
+
+    return filtered_matches

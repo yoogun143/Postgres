@@ -3,10 +3,6 @@ from psycopg2.extensions import AsIs
 from helper.config import load_config
 from helper.string_manipulation import sql_to_list
 
-# # Test
-# schema = 'vnd'
-# table = 'daily_acctno_cashflow'
-
 def create_table(schema: str, table: str) -> None:
     """
     Reads SQL commands from a file, connects to a PostgreSQL database using configuration parameters,
@@ -16,7 +12,7 @@ def create_table(schema: str, table: str) -> None:
     :param table: The table name to be created.
     :return: None
     """
-    commands = sql_to_list(f'sql/{schema}/{table}/create_table.sql')
+    commands = sql_to_list(f'etl/sql/{schema}/{table}/create_table.sql')
 
     try:
         config = load_config()

@@ -3,7 +3,7 @@ import pandas as pd
 from helper.string_manipulation import join_stock_string
 from helper.config import load_config
 
-from typing import Dict
+from typing import Dict,List
 
 def params_dict_to_string(params_dict: Dict) -> str:
     """
@@ -87,52 +87,60 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
 
     return df
 
-def api_arguments_date_filter(symbol: str, from_date: str, to_date: str, baseURL: str = 'https://finfo-api.vndirect.com.vn',
-                              endpoint: str = '/v4/stock_prices', filename: str = 'helper/headers.ini',
-                              section: str = 'vnd_headers') -> Dict:
+def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = None, from_date: str = None, to_date: str = None, sort: str = None, size: int = 9999,
+                  baseURL: str = 'https://finfo-api.vndirect.com.vn',
+                  filename: str = 'helper/headers.ini',
+                  section: str = 'vnd_headers') -> Dict:
     """
-    Converts the input parameters into a dictionary suitable for making API requests to retrieve stock prices within a specified date range.
+    Generates a dictionary of arguments for making API requests to retrieve stock prices based on the provided parameters.
 
-    Parameters:
-        symbol (str): The stock symbol for which the prices are to be retrieved.
-        from_date (str): The start date of the date range for which prices are to be retrieved (format: 'YYYY-MM-DD').
-        to_date (str): The end date of the date range for which prices are to be retrieved (format: 'YYYY-MM-DD').
-        baseURL (str, optional): The base URL of the API. Default is 'https://finfo-api.vndirect.com.vn'.
-        endpoint (str, optional): The endpoint for retrieving stock prices. Default is '/v4/stock_prices'.
-        filename (str, optional): The path to the configuration file containing headers. Default is 'helper/headers.ini'.
-        section (str, optional): The section in the configuration file containing headers. Default is 'vnd_headers'.
+    Args:
+    - symbol (List[str], optional): A list of stock symbols to filter the results. Defaults to None.
+    - floor (List[str], optional): A list of stock floor codes to filter the results. Defaults to None.
+    - from_date (str, optional): The start date for filtering stock prices. Defaults to None.
+    - to_date (str, optional): The end date for filtering stock prices. Defaults to None.
+    - sort (str, optional): The sorting parameter for the results. Defaults to 'date'.
+    - size (int, optional): The maximum number of results to retrieve. Defaults to 9999.
+    - baseURL (str, optional): The base URL of the API. Defaults to 'https://finfo-api.vndirect.com.vn'.
+    - endpoint (str, optional): The endpoint for retrieving stock prices. Defaults to '/v4/stock_prices'.
+    - filename (str, optional): The name of the configuration file containing headers. Defaults to 'helper/headers.ini'.
+    - section (str, optional): The section in the configuration file containing headers. Defaults to 'vnd_headers'.
 
     Returns:
-        dict: A dictionary containing the necessary arguments for making the API request.
+    - Dict: A dictionary containing the arguments required for making the API request, including baseURL, endpoint, params_dict, and headers.
 
-    Example:
-        arguments_dict = api_arguments_date_filter('AAPL', '2022-01-01', '2022-01-31')
-        # Output: {'baseURL': 'https://finfo-api.vndirect.com.vn', 'endpoint': '/v4/stock_prices', 'params_dict': {'sort': 'date', 'q': {'code': 'AAPL', 'date': {'gte': '2022-01-01', 'lte': '2022-01-31'}}, 'size': 10}, 'headers': {...}}
+    Raises:
+    - ValueError: If either 'from_date' or 'to_date' is missing when the other is provided.
+
+    Note:
+    - This function relies on the 'join_stock_string' function from 'helper.string_manipulation' and the 'load_config' function from 'helper.config' for processing symbols and loading headers, respectively.
     """
-    stock_string = join_stock_string(symbol)
-    params_dict = {
-        # gte – greater than or equal Value
-        # gt – greater than Value
-        # lt – less than Value
-        # lte – less than or equal Value
-        # gsd – ground sample distance  
-        'sort': 'date',
-        'q':{
-            'code':stock_string,
-            'date':{
-                'gte':from_date,
-                'lte':to_date
-            }
-        },
-        'size':10
-    }
-    headers = load_config(filename,section)
+    params_dict = {}
 
-    arguments_dict = {
-        'baseURL':baseURL,
-        'endpoint':endpoint,
-        'params_dict':params_dict,
-        'headers':headers,
-    }
+    if sort is not None:
+        params_dict['sort'] = sort
 
-    return arguments_dict
+    if size is not None:
+        params_dict['size'] = size
+
+    if symbol is not None:
+        params_dict.setdefault('q', {})['code'] = join_stock_string(symbol)
+
+    if floor is not None:
+        params_dict.setdefault('q', {})['floor'] = join_stock_string(floor)
+
+    if from_date is not None and to_date is not None:
+        params_dict.setdefault('q', {})['date'] = {'gte': from_date, 'lte': to_date}
+    elif from_date is None and to_date is not None:
+        raise ValueError('need parameter: from_date')
+    elif from_date is not None and to_date is None:
+        raise ValueError('need parameter: to_date')
+
+    headers = load_config(filename, section)
+
+    return {
+        'baseURL': baseURL,
+        'endpoint': endpoint,
+        'params_dict': params_dict,
+        'headers': headers,
+    }
