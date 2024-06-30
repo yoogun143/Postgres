@@ -87,7 +87,9 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
 
     return df
 
-def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = None, from_date: str = None, to_date: str = None, sort: str = None, size: int = 9999,
+def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = None, sort: str = None, size: int = 9999,
+                  from_date: str = None, to_date: str = None, 
+                  from_effective_date: str = None, to_effective_date: str = None,
                   baseURL: str = 'https://finfo-api.vndirect.com.vn',
                   filename: str = 'helper/headers.ini',
                   section: str = 'vnd_headers') -> Dict:
@@ -97,10 +99,12 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
     Args:
     - symbol (List[str], optional): A list of stock symbols to filter the results. Defaults to None.
     - floor (List[str], optional): A list of stock floor codes to filter the results. Defaults to None.
-    - from_date (str, optional): The start date for filtering stock prices. Defaults to None.
-    - to_date (str, optional): The end date for filtering stock prices. Defaults to None.
     - sort (str, optional): The sorting parameter for the results. Defaults to 'date'.
     - size (int, optional): The maximum number of results to retrieve. Defaults to 9999.
+    - from_date (str, optional): The start date for filtering stock prices. Defaults to None.
+    - to_date (str, optional): The end date for filtering stock prices. Defaults to None.
+    - from_effective_date (str, optional): The start effective date for filtering stock prices. Defaults to None.
+    - to_date (str, optional): The end effective date for filtering stock prices. Defaults to None.
     - baseURL (str, optional): The base URL of the API. Defaults to 'https://finfo-api.vndirect.com.vn'.
     - endpoint (str, optional): The endpoint for retrieving stock prices. Defaults to '/v4/stock_prices'.
     - filename (str, optional): The name of the configuration file containing headers. Defaults to 'helper/headers.ini'.
@@ -135,6 +139,13 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
         raise ValueError('need parameter: from_date')
     elif from_date is not None and to_date is None:
         raise ValueError('need parameter: to_date')
+    
+    if from_effective_date is not None and to_effective_date is not None:
+        params_dict.setdefault('q', {})['effectiveDate'] = {'gte': from_effective_date, 'lte': to_effective_date}
+    elif from_effective_date is None and to_effective_date is not None:
+        raise ValueError('need parameter: from_effective_date')
+    elif from_effective_date is not None and to_effective_date is None:
+        raise ValueError('need parameter: to_effective_date')
 
     headers = load_config(filename, section)
 

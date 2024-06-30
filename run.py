@@ -13,14 +13,22 @@ if __name__ == '__main__':
     # floor = ['HOSE','HNX','UPCOM','OTC']
     # arguments_dict=gen_arguments(endpoint= endpoint, floor=floor)
 
-    ### fact_stock_price_daily
-    table = 'fact_stock_price_daily'
-    endpoint = '/v4/stock_prices'
-    floor = ['HOSE','HNX','UPCOM','OTC']
-    from_date = '2024-06-01'
-    to_date = '2024-06-28'
-    sort='date'
-    arguments_dict=gen_arguments(endpoint= endpoint, floor=floor, from_date=from_date, to_date=to_date,sort=sort)
+    # ### fact_stock_price_daily
+    # table = 'fact_stock_price_daily'
+    # endpoint = '/v4/stock_prices'
+    # floor = ['HOSE','HNX','UPCOM','OTC']
+    # from_date = '2024-06-01'
+    # to_date = '2024-06-28'
+    # sort='date'
+    # arguments_dict=gen_arguments(endpoint= endpoint, floor=floor, from_date=from_date, to_date=to_date,sort=sort)
+
+    ### fact_stock_events
+    table = 'fact_stock_events'
+    endpoint = '/v4/events'
+    from_effective_date = '2024-01-01'
+    to_effective_date = '2024-06-28'
+    sort='effectiveDate'
+    arguments_dict=gen_arguments(endpoint= endpoint, from_effective_date=from_effective_date, to_effective_date=to_effective_date ,sort=sort)
     
     create_table(schema=schema,table=table)
 
