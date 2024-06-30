@@ -4,18 +4,30 @@ from datetime import datetime
 from helper.api_manipulation import gen_arguments
 
 if __name__ == '__main__':
-    fk_date_today = datetime.now().strftime('%Y%m%d')
+    fk_date = datetime.now().strftime('%Y%m%d')
     schema = 'vnd'
+
+    # ### dim_symbol
     # table = 'dim_symbol'
-    table = input("Insert table name:")
+    # endpoint = '/v4/stocks'
+    # floor = ['HOSE','HNX','UPCOM','OTC']
+    # arguments_dict=gen_arguments(endpoint= endpoint, floor=floor)
+
+    ### fact_stock_price_daily
+    table = 'fact_stock_price_daily'
+    endpoint = '/v4/stock_prices'
+    floor = ['HOSE','HNX','UPCOM','OTC']
+    from_date = '2024-06-01'
+    to_date = '2024-06-28'
+    sort='date'
+    arguments_dict=gen_arguments(endpoint= endpoint, floor=floor, from_date=from_date, to_date=to_date,sort=sort)
     
     create_table(schema=schema,table=table)
 
-    arguments_dict=gen_arguments(endpoint= '/v4/stocks', floor=['HOSE','HNX','UPCOM','OTC'])
     api_to_csv(arguments_dict=arguments_dict
                ,schema=schema
                ,table=table
-               ,fk_date=fk_date_today
+               ,fk_date=fk_date
                )
-    csv_to_staging(schema=schema,table=table,fk_date=fk_date_today)
-    staging_to_warehouse(schema=schema,table=table,fk_date=fk_date_today)
+    csv_to_staging(schema=schema,table=table,fk_date=fk_date)
+    staging_to_warehouse(schema=schema,table=table,fk_date=fk_date)

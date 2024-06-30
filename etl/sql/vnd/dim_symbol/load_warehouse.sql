@@ -21,19 +21,19 @@ WITH insert_data AS (
 )
 INSERT INTO %(schema)s.%(table)s
 (
-     code
-     ,companyid
-     ,type
-     ,floor
-     ,indexcode
+     symbol
+     ,company_id
+     ,security_type
+     ,trading_floor
+     ,index_code
      ,isin
      ,status
-     ,companyname
-     ,companynameeng
-     ,shortname
-     ,shortnameeng
-     ,listeddate
-     ,delisteddate
+     ,company_name
+     ,company_name_eng
+     ,short_name
+     ,short_name_eng
+     ,listed_date
+     ,delisted_date
      ,taxcode
      ,fk_date  
 )

@@ -47,7 +47,7 @@ def get_column_name_from_create_table(sql_statement: str) -> list:
         list: A list of column names extracted from the SQL statement, excluding 'fk_date'.
     """
     # Define a regular expression pattern to match column names followed by their data types
-    pattern = r'\b(\w+)\s+\b(?:VARCHAR|INT|TEXT|DATE)\b'
+    pattern = r'\b(\w+)\s+\b(?:VARCHAR|INT|TEXT|DATE|NUMERIC|DECIMAL)\b'
 
     # Use re.findall to find all matches of the pattern in the sql_statement
     matches = re.findall(pattern, sql_statement)
