@@ -1,5 +1,7 @@
+# File
 database.ini
-__pycache__
-helper/__pycache__
-raw
 design.xlsx
+
+# Folder 
+__pycache__/
+raw/
