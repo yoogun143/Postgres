@@ -1,4 +1,5 @@
 database.ini
 __pycache__
+helper/__pycache__
 raw
 design.xlsx

@@ -155,3 +155,27 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
         'params_dict': params_dict,
         'headers': headers,
     }
+
+def load_arguments_dict(table):
+    """
+    Load arguments dictionary for a specific table from a configuration file.
+
+    Parameters:
+    table (str): The name of the table to load arguments for.
+
+    Returns:
+    dict: A dictionary containing the arguments for the specified table.
+
+    Raises:
+    Exception: If the specified table is not found in the configuration file.
+    """
+    config = load_config(filename='helper/tables.ini',section=table)
+
+    # Assign variables to globals
+    for key,val in config.items():
+        exec(key + '=' + val, globals())
+        print(f'exec(): {key} = {val}')
+    
+    arguments_dict = globals()['arguments_dict']
+
+    return arguments_dict
