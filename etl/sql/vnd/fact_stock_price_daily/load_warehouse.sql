@@ -27,7 +27,7 @@ WITH insert_data AS (
           ,change * 1000
           ,adchange * 1000
           ,pctchange
-          ,%(fk_date)s fk_date
+          ,fk_date
      FROM staging.%(table)s
 )
 INSERT INTO %(schema)s.%(table)s

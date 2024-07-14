@@ -55,4 +55,5 @@ CREATE TABLE IF NOT EXISTS staging.%(table)s
      ,change       DECIMAL(20, 2)
      ,adchange     DECIMAL(20, 2)
      ,pctchange    DECIMAL(20, 2)
+     ,fk_date      VARCHAR(8)
   );

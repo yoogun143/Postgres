@@ -38,13 +38,13 @@ def join_stock_string(symbol: Union[str, List[str], Tuple[str]]) -> str:
 
 def get_column_name_from_create_table(sql_statement: str) -> list:
     """
-    Extracts column names from a CREATE TABLE SQL statement, excluding 'fk_date'.
+    Extracts column names from a CREATE TABLE SQL statement.
 
     Args:
         sql_statement (str): The CREATE TABLE SQL statement from which to extract column names.
 
     Returns:
-        list: A list of column names extracted from the SQL statement, excluding 'fk_date'.
+        list: A list of column names extracted from the SQL statement.
     """
     # Define a regular expression pattern to match column names followed by their data types
     pattern = r'\b(\w+)\s+\b(?:VARCHAR|INT|TEXT|DATE|NUMERIC|DECIMAL)\b'
@@ -52,7 +52,19 @@ def get_column_name_from_create_table(sql_statement: str) -> list:
     # Use re.findall to find all matches of the pattern in the sql_statement
     matches = re.findall(pattern, sql_statement)
 
-    # Filter out any matches that are equal to 'fk_date'
-    filtered_matches = [match for match in matches if match != 'fk_date']
+    # # Filter out any matches that are equal to 'fk_date'
+    # filtered_matches = [match for match in matches if match != 'fk_date']
 
-    return filtered_matches
+    return matches
+
+def comma_separated_to_list(string: str) -> list:
+    """
+    Transforms a comma-separated string into a list and removes blank elements.
+
+    Parameters:
+    s (str): The input string separated by commas.
+
+    Returns:
+    list: A list of strings with no blank elements.
+    """
+    return [item.strip() for item in string.split(',') if item.strip()]

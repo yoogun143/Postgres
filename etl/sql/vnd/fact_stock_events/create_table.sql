@@ -53,4 +53,5 @@ CREATE TABLE IF NOT EXISTS staging.%(table)s
      ,registerstartdate DATE
      ,registerenddate   DATE
      ,locale            VARCHAR(20)
+     ,fk_date           VARCHAR(8)
   );

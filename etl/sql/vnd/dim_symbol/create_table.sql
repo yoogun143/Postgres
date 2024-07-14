@@ -14,7 +14,9 @@ CREATE TABLE IF NOT EXISTS %(schema)s.%(table)s
      ,listed_date      DATE
      ,delisted_date    DATE
      ,taxcode          VARCHAR(200)
-     ,fk_date          VARCHAR(8)
+     ,eff_date         DATE
+     ,end_date         DATE
+     ,valid            BOOLEAN
   ); 
 
 CREATE TABLE IF NOT EXISTS staging.%(table)s
@@ -33,4 +35,5 @@ CREATE TABLE IF NOT EXISTS staging.%(table)s
      ,listeddate     DATE
      ,delisteddate   DATE
      ,taxcode        VARCHAR(200)
+     ,fk_date        VARCHAR(8)
   );

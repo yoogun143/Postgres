@@ -26,7 +26,7 @@ WITH insert_data AS (
           ,registerstartdate
           ,registerenddate
           ,locale
-          ,%(fk_date)s fk_date
+          ,fk_date
      FROM staging.%(table)s
 )
 INSERT INTO %(schema)s.%(table)s

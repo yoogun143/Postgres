@@ -8,7 +8,11 @@ if __name__ == '__main__':
     schema = 'vnd'
 
     # List table to run flow
-    table_list = ['dim_symbol','fact_stock_price_daily','fact_stock_events']
+    table_list = [
+        'dim_symbol',
+        'fact_stock_price_daily',
+        'fact_stock_events'
+        ]
 
     for table in table_list:
 
