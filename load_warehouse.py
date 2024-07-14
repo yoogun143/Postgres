@@ -50,9 +50,9 @@ def update_scd_type_2(schema: str, table: str, fk_date: str) -> None:
     change_key = comma_separated_to_list(scd2_config['change_key'])
     change_key_staging = comma_separated_to_list(scd2_config['change_key_staging'])
     all_fields = comma_separated_to_list(scd2_config['all_fields'])
-    all_fields = [field for field in all_fields if field not in ('eff_date', 'end_date', 'valid')]
+    all_fields = [field for field in all_fields if field not in ('eff_date', 'end_date', 'valid', 'fk_date')]
     all_fields_staging = comma_separated_to_list(scd2_config['all_fields_staging'])
-    all_fields_staging = [field for field in all_fields_staging if field not in ('eff_date', 'end_date', 'valid')]
+    all_fields_staging = [field for field in all_fields_staging if field not in ('eff_date', 'end_date', 'valid', 'fk_date')]
 
     v_condition_1 = [sql.SQL(f"a.{key} = b.{staging_key}") for key,staging_key in zip(natural_key,natural_key_staging)]
     v_condition_1 = sql.SQL(" AND ").join(v_condition_1)
@@ -221,7 +221,7 @@ def staging_to_warehouse(schema: str, table: str, fk_date: str) -> None:
     Raises:
     - ValueError: If the table name does not start with 'dim' or 'fact'.
     '''
-    if table.startswith('fact'):
+    if table.startswith('fact_'):
         commands = sql_to_list(f'etl/sql/{schema}/{table}/load_warehouse.sql')
 
         try:
@@ -239,11 +239,11 @@ def staging_to_warehouse(schema: str, table: str, fk_date: str) -> None:
         except (psycopg2.DatabaseError, Exception) as error:
             print(error)
 
-    elif table.startswith('dim'):
+    elif table.startswith('dim_') or table.startswith('factless_'):
         update_scd_type_2(schema, table, fk_date)
 
     else: 
-        raise ValueError('Table name must starts with dim OR fact')
+        raise ValueError('Table name must starts with dim_ OR fact_ OR factless_')
 
 if __name__ == '__main__':
     arguments_dict=gen_arguments(symbol=['MWG','FPT','VNM','VND'],from_date='2024-06-01',to_date='2024-06-21')

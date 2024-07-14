@@ -24,7 +24,9 @@ CREATE TABLE IF NOT EXISTS %(schema)s.%(table)s
      ,register_start_date    DATE
      ,register_end_date      DATE
      ,locale                 VARCHAR(20)
-     ,fk_date                VARCHAR(8)
+     ,eff_date               DATE
+     ,end_date               DATE
+     ,valid                  BOOLEAN
   ); 
 
 CREATE TABLE IF NOT EXISTS staging.%(table)s

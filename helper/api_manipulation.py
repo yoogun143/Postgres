@@ -2,6 +2,7 @@ import requests
 import pandas as pd
 from helper.string_manipulation import join_stock_string
 from helper.config import load_config
+from datetime import datetime,timedelta
 
 from typing import Dict,List
 
@@ -156,6 +157,21 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
         'headers': headers,
     }
 
+def add_days_from_today(date_format: str = '%Y-%m-%d', days: int = 0) -> str:
+    """
+    Return a formatted date string based on the current date and an optional number of days to add.
+
+    Parameters:
+    - date_format (str): Format of the output date string (default is '%Y-%m-%d').
+    - days (int): Number of days to add to the current date (default is 0).
+
+    Returns:
+    - str: Formatted date string based on the current date and the added days.
+    """
+    date_added = datetime.now() + timedelta(days=days)
+
+    return date_added.strftime(date_format)
+
 def load_arguments_dict(table):
     """
     Load arguments dictionary for a specific table from a configuration file.
@@ -173,8 +189,8 @@ def load_arguments_dict(table):
 
     # Assign variables to globals
     for key,val in config.items():
-        exec(key + '=' + val, globals())
         print(f'exec(): {key} = {val}')
+        exec(key + '=' + val, globals())
     
     arguments_dict = globals()['arguments_dict']
 
