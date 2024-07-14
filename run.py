@@ -10,8 +10,8 @@ if __name__ == '__main__':
     # List table to run flow
     table_list = [
         # 'dim_symbol',
-        # 'fact_stock_price_daily',
-        'factless_stock_events'
+        'fact_stock_price',
+        # 'factless_stock_events'
         ]
 
     for table in table_list:
