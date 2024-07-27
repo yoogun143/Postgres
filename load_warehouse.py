@@ -139,11 +139,11 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str) -> N
     os.makedirs(os.path.dirname(data_path), exist_ok=True)
     
     df = api_to_pandas(
-            # baseURL=arguments_dict['baseURL']
-            # , endpoint=arguments_dict['endpoint']
-            # , params_dict=arguments_dict['params_dict']
-            # , headers=arguments_dict['headers']
-            **arguments_dict ##can be used instead of extract key-value from arguments_dict
+            baseURL=arguments_dict['baseURL']
+            , endpoint=arguments_dict['endpoint']
+            , params_dict=arguments_dict['params_dict']
+            , headers=arguments_dict['headers']
+            # **arguments_dict ##can be used instead of extract key-value from arguments_dict
             , timeout=10
             )
     # df.columns = [x.lower() for x in df.columns]
