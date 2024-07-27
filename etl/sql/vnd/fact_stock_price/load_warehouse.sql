@@ -1,7 +1,7 @@
 DELETE FROM %(schema)s.%(table)s WHERE fk_date = %(fk_date)s;
 
 WITH insert_data AS (
-     SELECT DISTINCT
+     SELECT
           code
           ,date
           ,time

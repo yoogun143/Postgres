@@ -177,6 +177,9 @@ def csv_to_staging(schema: str, table: str, fk_date: str) -> None:
     df = df[staging_columns]
     df = df.fillna(AsIs('Null'))
 
+    # Remove dulicates
+    df = df.drop_duplicates()
+
     df_columns = list(df)
     # create (col1,col2,...)
     columns = ','.join(list(df))
