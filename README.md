@@ -1,6 +1,11 @@
 # Postgres
-This is the Postgres live locally, getting data directly from VND api and do ETL job to database
-This is change to current branch
+
+# Squash commit before making using Git graph
+For example, there are 5 commits in a branch E.g: KAN-49. 
+1. You need to check out the last commit.
+2. On git graph right click on the last commit of main branch and click "Reset current branch to this commit". Choose option: "Mixed. Keep working tree but reset index". The 5 local commits in KAN-49 will be squashed.
+3. Right click on last commit in remote branch and delete the remote branch
+4. Push the squashed branch to remote
 
 # Update .gitignore file
 ```bash
