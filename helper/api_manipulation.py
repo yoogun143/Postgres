@@ -3,6 +3,9 @@ import pandas as pd
 from helper.string_manipulation import join_stock_string
 from helper.config import load_config
 from datetime import datetime,timedelta
+import subprocess
+import json
+import random
 
 from typing import Dict,List
 
@@ -43,8 +46,7 @@ def params_dict_to_string(params_dict: Dict) -> str:
 
     return params_dict_change
 
-
-def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict, timeout: int = 10) -> pd.DataFrame:
+def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict, timeout: int = 10, use_proxy: bool = False, rerun_proxy: bool = True, proxy_list_filter: str = 'proxy\proxy_list_filter.txt') -> pd.DataFrame:
     """
     Fetches data from an API endpoint and converts it into a pandas DataFrame.
 
@@ -54,22 +56,75 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
         params_dict (dict): A nested dictionary containing the parameters to be included in the API request.
         headers (dict): A dictionary containing the headers to be included in the API request.
         timeout (int, optional): The timeout value for the API request in seconds. Defaults to 10.
+        use_proxy (bool, optional): Whether to use a proxy or not. Defaults to False.
+        rerun_proxy (bool, optional): Whether to rerun the proxy script to update the proxy list. Defaults to True.
+        proxy_list_filter (str, optional): The file containing the list of proxies. Defaults to 'proxy\proxy_list_filter.txt'.
 
     Returns:
         pandas.DataFrame: A DataFrame containing the fetched data from the API endpoint.
-
-    Example:
-        df = api_to_pandas('https://api.example.com/', 'data', {'sort': {'field1': 'asc', 'field2': 'desc'}, 'filter': {'date': '2022-01-01'}}, {'Authorization': 'Bearer token'})
     """
+
+    if use_proxy:
+        # Rerun the proxy script to update the proxy list
+        if rerun_proxy:
+            subprocess.run(['python', 'proxy\proxy.py'])
+
+        # Read the proxy list from the file
+        with open(proxy_list_filter, 'r') as f:
+            proxies = [line.strip() for line in f.readlines()]
+            if not proxies:
+                raise ValueError("proxy_list_filter is empty. Please check the proxy list file at proxy\proxy_list_filter.txt and proxy\proxy_list_raw.txt.")
+        proxy_index = 0
+
     page_num = 1
     df = pd.DataFrame()
 
     while True:
-        response = requests.get(
-            f"{baseURL}{endpoint}?{params_dict_to_string(params_dict)}&page={page_num}",
-            headers=headers,
-            timeout=timeout
-        )
+        if use_proxy:
+            # Use a proxy for the request
+            if proxy_index >= len(proxies):
+                print(f"All proxies failed for {response.url}. Plase check the proxy list file at proxy\proxy_list_filter.txt and proxy\proxy_list_raw.txt.")
+                break
+
+            proxy = proxies[proxy_index]
+            proxies_dict = {
+                "http": proxy,
+                "https": proxy
+            }
+            try:
+                response = requests.get(
+                    f"{baseURL}{endpoint}?{params_dict_to_string(params_dict)}&page={page_num}",
+                    headers=headers,
+                    proxies=proxies_dict,
+                    timeout=timeout
+                )
+                try:
+                    response.json()
+                except json.JSONDecodeError:
+                    print(f"Error decode json from proxy {proxy}:{response.url}, trying next proxy") 
+                    proxy_index += 1               
+            except requests.RequestException as e:
+                print(f"Proxy {proxy} failed: {e}, trying next proxy")
+                proxy_index += 1
+
+            try:
+                response.json()
+            except json.JSONDecodeError:
+                print(f"Error decode json from proxy {proxy}:{response.url}, trying next proxy")
+                proxy_index += 1
+
+        else:
+            # Make the request without a proxy
+            response = requests.get(
+                f"{baseURL}{endpoint}?{params_dict_to_string(params_dict)}&page={page_num}",
+                headers=headers,
+                timeout=timeout
+            )
+            try:
+                response.json()
+            except json.JSONDecodeError:
+                print(f"Error: {response.status_code} {response.reason} on page {page_num} {response.url}")
+                break # break if error
 
         status_code = response.status_code
         url = response.url
@@ -80,7 +135,11 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
         df_partition = pd.json_normalize(response_data)
         df = pd.concat([df, df_partition])
 
-        print(f"Getting page {page_num}/{total_pages}, status: {status_code}, url: {url}")
+        if use_proxy:
+            print(f"Getting page {page_num}/{total_pages}, status: {status_code}, url: {url}, proxy: {proxy}")
+        else:
+            print(f"Getting page {page_num}/{total_pages}, status: {status_code}, url: {url}")
+
         if page_num >= total_pages:
             break
 
@@ -92,12 +151,13 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
                   from_date: str = None, to_date: str = None, 
                   from_effective_date: str = None, to_effective_date: str = None,
                   baseURL: str = 'https://finfo-api.vndirect.com.vn',
-                  filename: str = 'helper/headers.ini',
-                  section: str = 'vnd_headers') -> Dict:
+                  list_user_agent: str = 'helper/list_user_agent.txt',
+                  ) -> Dict:
     """
     Generates a dictionary of arguments for making API requests to retrieve stock prices based on the provided parameters.
 
     Args:
+    - endpoint (str): The endpoint for retrieving stock prices. Defaults to '/v4/stock_prices'.
     - symbol (List[str], optional): A list of stock symbols to filter the results. Defaults to None.
     - floor (List[str], optional): A list of stock floor codes to filter the results. Defaults to None.
     - sort (str, optional): The sorting parameter for the results. Defaults to 'date'.
@@ -107,7 +167,7 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
     - from_effective_date (str, optional): The start effective date for filtering stock prices. Defaults to None.
     - to_date (str, optional): The end effective date for filtering stock prices. Defaults to None.
     - baseURL (str, optional): The base URL of the API. Defaults to 'https://finfo-api.vndirect.com.vn'.
-    - endpoint (str, optional): The endpoint for retrieving stock prices. Defaults to '/v4/stock_prices'.
+    - list_user_agent (str, optional): The file containing the list of user agents. Defaults to 'helper/list_user_agent.txt'.
     - filename (str, optional): The name of the configuration file containing headers. Defaults to 'helper/headers.ini'.
     - section (str, optional): The section in the configuration file containing headers. Defaults to 'vnd_headers'.
 
@@ -147,8 +207,15 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
         raise ValueError('need parameter: from_effective_date')
     elif from_effective_date is not None and to_effective_date is None:
         raise ValueError('need parameter: to_effective_date')
+    
+    # List user agents
+    with open(list_user_agent, 'r') as f:
+        user_agents = f.read().split('\n')
 
-    headers = load_config(filename, section)
+    headers = {
+        'User-Agent': random.choice(user_agents),
+        'Content-Type': 'application/json',
+    }
 
     return {
         'baseURL': baseURL,
@@ -195,3 +262,12 @@ def load_arguments_dict(table):
     arguments_dict = globals()['arguments_dict']
 
     return arguments_dict
+
+if __name__ == '__main__':
+    table = 'factless_stock_events'
+    arguments_dict = load_arguments_dict(table=table)
+    baseURL,endpoint,params_dict,headers=arguments_dict.values()
+    use_proxy=True
+    proxy_list_filter='proxy\proxy_list_filter.txt'
+    timeout=10
+    api_to_pandas(**arguments_dict,use_proxy=True)

@@ -119,7 +119,7 @@ def update_scd_type_2(schema: str, table: str, fk_date: str) -> None:
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
     
-def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str) -> None:
+def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_proxy: bool = False,rerun_proxy: bool = True) -> None:
     """
     Fetches data from an API endpoint and exports it to a CSV file.
 
@@ -128,6 +128,8 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str) -> N
         schema (str): The schema name for the CSV file.
         table (str): The table name for the CSV file.
         fk_date (str): The foreign key date used in the CSV file name.
+        use_proxy (bool): Whether to use a proxy for the API request. Defaults to False.
+        rerun_proxy (bool): Whether to rerun the proxy if the API request fails. Defaults to True.
 
     Returns:
         None
@@ -137,14 +139,19 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str) -> N
     """
     data_path = f"raw/{schema}_{table}_{fk_date}.csv"
     os.makedirs(os.path.dirname(data_path), exist_ok=True)
+
+    if rerun_proxy == False:
+        print("Rerun proxy manually by running proxy\proxy.py")
     
     df = api_to_pandas(
             # baseURL=arguments_dict['baseURL']
             # , endpoint=arguments_dict['endpoint']
             # , params_dict=arguments_dict['params_dict']
             # , headers=arguments_dict['headers']
-            **arguments_dict ##can be used instead of extract key-value from arguments_dict
-            , timeout=10
+            **arguments_dict, ##can be used instead of extract key-value from arguments_dict
+            timeout=10,
+            use_proxy=use_proxy,
+            rerun_proxy=rerun_proxy
             )
     # df.columns = [x.lower() for x in df.columns]
     df['fk_date'] = fk_date
