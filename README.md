@@ -7,6 +7,11 @@ For example, there are 5 commits in a branch E.g: KAN-49.
 3. Right click on last commit in remote branch and delete the remote branch
 4. Push the squashed branch to remote
 
+# Cannot delete a local branch
+```bash
+git rebase --abort
+```
+
 # Update .gitignore file
 ```bash
 git rm -r --cached .
