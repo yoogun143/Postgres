@@ -10,8 +10,8 @@ if __name__ == '__main__':
     # List table to run flow
     table_list = [
         # 'dim_symbol',
-        'fact_stock_price',
-        # 'factless_stock_events'
+        # 'fact_stock_price',
+        'factless_stock_events'
         ]
 
     for table in table_list:
@@ -28,6 +28,8 @@ if __name__ == '__main__':
                 ,schema=schema
                 ,table=table
                 ,fk_date=fk_date
+                ,use_proxy=True
+                # ,rerun_proxy=True
                 )
         csv_to_staging(schema=schema,table=table,fk_date=fk_date)
         staging_to_warehouse(schema=schema,table=table,fk_date=fk_date)

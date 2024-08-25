@@ -4,6 +4,7 @@ design.xlsx
 trash.txt
 proxy_list_raw.txt
 proxy_list_filter.txt
+list_user_agent.txt
 
 # Folder 
 __pycache__/
