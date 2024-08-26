@@ -1,10 +1,13 @@
 # File
 database.ini
 design.xlsx
+~$design.xlsx
 trash.txt
 proxy_list_raw.txt
 proxy_list_filter.txt
 list_user_agent.txt
+calc_price_pkg.sql
+test_raw.ipynb
 
 # Folder 
 __pycache__/
