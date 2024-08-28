@@ -12,7 +12,8 @@ if __name__ == '__main__':
         # 'dim_symbol',
         # 'fact_stock_price',
         # 'factless_stock_events',
-        'dim_financial_models'
+        # 'dim_financial_models',
+        'factless_financial_statements'
         ]
 
     for table in table_list:
