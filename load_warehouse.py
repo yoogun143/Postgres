@@ -119,7 +119,7 @@ def update_scd_type_2(schema: str, table: str, fk_date: str) -> None:
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
     
-def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_proxy: bool = False,rerun_proxy: bool = True) -> None:
+def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_proxy: bool = False,rerun_proxy: bool = True,timeout: int = 10) -> None:
     """
     Fetches data from an API endpoint and exports it to a CSV file.
 
@@ -149,7 +149,7 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_
             # , params_dict=arguments_dict['params_dict']
             # , headers=arguments_dict['headers']
             **arguments_dict, ##can be used instead of extract key-value from arguments_dict
-            timeout=10,
+            timeout=timeout,
             use_proxy=use_proxy,
             rerun_proxy=rerun_proxy
             )

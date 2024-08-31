@@ -74,44 +74,50 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
             proxies = [line.strip() for line in f.readlines()]
             if not proxies:
                 raise ValueError("proxy_list_filter is empty. Please check the proxy list file at proxy\proxy_list_filter.txt and proxy\proxy_list_raw.txt.")
-        proxy_index = 0
 
     page_num = 1
     df = pd.DataFrame()
 
     while True:
         if use_proxy:
-            # Use a proxy for the request
-            if proxy_index >= len(proxies):
-                print(f"All proxies failed for {response.url}. Plase check the proxy list file at proxy\proxy_list_filter.txt and proxy\proxy_list_raw.txt.")
-                break
+            proxy_index = 0
 
-            proxy = proxies[proxy_index]
-            proxies_dict = {
-                "http": proxy,
-                "https": proxy
-            }
-            try:
+            while proxy_index < len(proxies):
+
+                proxy = proxies[proxy_index]
+                proxies_dict = {
+                    "http": proxy,
+                    "https": proxy
+                }
+                try:
+                    response = requests.get(
+                        f"{baseURL}{endpoint}?{params_dict_to_string(params_dict)}&page={page_num}",
+                        headers=headers,
+                        proxies=proxies_dict,
+                        timeout=timeout
+                    )
+                    try:
+                        response.json()
+                        break
+                    except json.JSONDecodeError:
+                        print(f"Error decode json from proxy {proxy}:{response.url}, trying next proxy") 
+                        proxy_index += 1
+
+                except requests.RequestException as e:
+                    print(f"Proxy {proxy} failed: {e}, trying next proxy")
+                    proxy_index += 1
+
+            # Use a proxy for the request
+            if proxy_index == len(proxies):
+                print(f"All proxies failed for {baseURL}{endpoint}?{params_dict_to_string(params_dict)}&page={page_num}. Plase check the proxy list file at proxy\proxy_list_filter.txt and proxy\proxy_list_raw.txt.")
+                break
+            else:
                 response = requests.get(
                     f"{baseURL}{endpoint}?{params_dict_to_string(params_dict)}&page={page_num}",
                     headers=headers,
                     proxies=proxies_dict,
                     timeout=timeout
-                )
-                try:
-                    response.json()
-                except json.JSONDecodeError:
-                    print(f"Error decode json from proxy {proxy}:{response.url}, trying next proxy") 
-                    proxy_index += 1               
-            except requests.RequestException as e:
-                print(f"Proxy {proxy} failed: {e}, trying next proxy")
-                proxy_index += 1
-
-            try:
-                response.json()
-            except json.JSONDecodeError:
-                print(f"Error decode json from proxy {proxy}:{response.url}, trying next proxy")
-                proxy_index += 1
+                )                
 
         else:
             # Make the request without a proxy
@@ -133,6 +139,11 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
             total_pages = response.json()['totalPages']
 
         df_partition = pd.json_normalize(response_data)
+        if df_partition is None or len(df_partition) == 0:
+            print(f"API return no data on page {page_num} {response.url}")      
+            df = None
+            break # break if error
+            
         df = pd.concat([df, df_partition])
 
         if use_proxy:
@@ -145,11 +156,15 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
 
         page_num += 1
 
+    if df is None or len(df) == 0:
+        raise ValueError(f"API return no data")           
+
     return df
 
 def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = None, sort: str = None, size: int = 9999,
                   from_date: str = None, to_date: str = None, 
                   from_effective_date: str = None, to_effective_date: str = None,
+                  from_fiscal_date: str = None, to_fiscal_date: str = None,
                   baseURL: str = 'https://finfo-api.vndirect.com.vn',
                   list_user_agent: str = 'helper/list_user_agent.txt',
                   ) -> Dict:
@@ -163,9 +178,11 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
     - sort (str, optional): The sorting parameter for the results. Defaults to 'date'.
     - size (int, optional): The maximum number of results to retrieve. Defaults to 9999.
     - from_date (str, optional): The start date for filtering stock prices. Defaults to None.
+    - from_fiscal_date (str, optional): The start date for filtering fiscal events. Defaults to None.
     - to_date (str, optional): The end date for filtering stock prices. Defaults to None.
     - from_effective_date (str, optional): The start effective date for filtering stock prices. Defaults to None.
     - to_date (str, optional): The end effective date for filtering stock prices. Defaults to None.
+    - to_fiscal_date (str, optional): The end effective date for filtering stock fiscal event. Defaults to None.
     - baseURL (str, optional): The base URL of the API. Defaults to 'https://finfo-api.vndirect.com.vn'.
     - list_user_agent (str, optional): The file containing the list of user agents. Defaults to 'helper/list_user_agent.txt'.
     - filename (str, optional): The name of the configuration file containing headers. Defaults to 'helper/headers.ini'.
@@ -207,6 +224,13 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
         raise ValueError('need parameter: from_effective_date')
     elif from_effective_date is not None and to_effective_date is None:
         raise ValueError('need parameter: to_effective_date')
+    
+    if from_fiscal_date is not None and to_fiscal_date is not None:
+        params_dict.setdefault('q', {})['fiscalDate'] = {'gte': from_fiscal_date, 'lte': to_fiscal_date}
+    elif from_fiscal_date is None and to_fiscal_date is not None:
+        raise ValueError('need parameter: from_fiscal_date')
+    elif from_fiscal_date is not None and to_fiscal_date is None:
+        raise ValueError('need parameter: to_fiscal_date')
     
     # List user agents
     with open(list_user_agent, 'r') as f:
@@ -264,10 +288,10 @@ def load_arguments_dict(table):
     return arguments_dict
 
 if __name__ == '__main__':
-    table = 'factless_stock_events'
+    table = 'factless_financial_statements'
     arguments_dict = load_arguments_dict(table=table)
     baseURL,endpoint,params_dict,headers=arguments_dict.values()
     use_proxy=True
     proxy_list_filter='proxy\proxy_list_filter.txt'
-    timeout=10
-    api_to_pandas(**arguments_dict,use_proxy=True)
+    timeout=1
+    api_to_pandas(**arguments_dict,use_proxy=True,rerun_proxy=True,timeout=1)

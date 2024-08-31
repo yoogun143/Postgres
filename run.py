@@ -30,8 +30,9 @@ if __name__ == '__main__':
                 ,schema=schema
                 ,table=table
                 ,fk_date=fk_date
-                # ,use_proxy=True
-                # ,rerun_proxy=True
+                ,use_proxy=True
+                ,rerun_proxy=True
+                ,timeout=5
                 )
         csv_to_staging(schema=schema,table=table,fk_date=fk_date)
         staging_to_warehouse(schema=schema,table=table,fk_date=fk_date)
