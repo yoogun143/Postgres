@@ -11,7 +11,9 @@ if __name__ == '__main__':
     table_list = [
         # 'dim_symbol',
         # 'fact_stock_price',
-        'factless_stock_events'
+        # 'factless_stock_events',
+        # 'dim_financial_models',
+        'factless_financial_statements'
         ]
 
     for table in table_list:
@@ -28,8 +30,9 @@ if __name__ == '__main__':
                 ,schema=schema
                 ,table=table
                 ,fk_date=fk_date
-                ,use_proxy=True
+                # ,use_proxy=True
                 # ,rerun_proxy=True
+                ,timeout=20
                 )
         csv_to_staging(schema=schema,table=table,fk_date=fk_date)
         staging_to_warehouse(schema=schema,table=table,fk_date=fk_date)
