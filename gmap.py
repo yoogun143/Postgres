@@ -36,8 +36,8 @@ visit_activity['endTime_human'] = pd.to_datetime(visit_activity['endTime'], unit
 visit_activity['endTime_lag'] = visit_activity['endTime'].shift(1).astype("Int64")
 visit_activity['start_time_minus_prev_end_time'] = visit_activity['startTime'] - visit_activity['endTime_lag']
 
-visit_activity[visit_activity['start_time_minus_prev_end_time'] > 0]
-visit_activity[visit_activity['endTime'].between(1729707612-86400, 1729707612+86400)]
+# visit_activity[visit_activity['start_time_minus_prev_end_time'] > 0]
+# visit_activity[visit_activity['endTime'].between(1729707612-86400, 1729707612+86400)]
 
 visit_activity['startTime'] = visit_activity['startTime'].mask(visit_activity['start_time_minus_prev_end_time'] == 0, visit_activity['startTime'] + 1)
 visit_activity['duration'] = visit_activity['endTime'] - visit_activity['startTime']
@@ -84,48 +84,59 @@ activity['end_lon'] = activity['end_point'].apply(lambda x: x[1])
 activity = activity[['startTime', 'endTime', 'start_lat', 'start_lon', 'end_lat', 'end_lon', 'topCandidate.type', 'probability', 'distanceMeters']]
 activity.columns = ['start_time', 'end_time', 'start_lat', 'start_lon', 'end_lat', 'end_lon', 'type', 'probability', 'distance_meters']
 
-activity[activity['end_time'].between(1729707612-86400, 1729707612+86400)]
-visit[visit['end_time'].between(1729707612-86400, 1729707612+86400)]
 
-# Join activity and timelinePath
-activity['key'] = 1
-timelinepath['key'] = 1
+from create_table import create_table
 
-activity = pd.merge(activity, timelinepath, how='left', on = ['key'], suffixes = ('_activity', '_timelinepath'))
-activity = activity.drop(['key'], axis=1)
-activity = activity[activity['time'].between(activity['start_time'], activity['end_time'])]
+create_table(schema='gmap',table='fact_activity')
 
-activity = activity.groupby(['start_time', 'end_time', 'start_lat', 'start_lon', 'end_lat', 'end_lon', 'type', 'probability', 'distance_meters'])[['time', 'lat', 'lon']].apply(
-    lambda x: {key: [float(value['lat']), float(value['lon'])] for key, value in x.set_index('time').to_dict(orient='index').items()}
-).reset_index().rename(columns={0: 'path'})
+# activity[activity['end_time'].between(1729707612-86400, 1729707612+86400)]
+# visit[visit['end_time'].between(1729707612-86400, 1729707612+86400)]
 
-activity['color'] = activity['type'].map({
-    'in bus': 'red',
-    'in passenger vehicle': 'blue',
-    'walking': 'green',
-    'motorcycling': 'yellow',
-    'unknown': 'black'
-})
+# # Join activity and timelinePath
+# activity['key'] = 1
+# timelinepath['key'] = 1
 
-activity = activity.reset_index(drop=True)
+# activity_right = pd.merge(activity, timelinepath, how='left', on = ['key'], suffixes = ('_activity', '_timelinepath'))
+# activity_right = activity_right.drop(['key'], axis=1)
+# activity_right = activity_right[activity_right['time'].between(activity_right['start_time'], activity_right['end_time'])]
 
-# Join visit and timelinePath
-visit['key'] = 1
-timelinepath['key'] = 1
+# activity_right = activity_right.groupby(['start_time', 'end_time', 'start_lat', 'start_lon', 'end_lat', 'end_lon', 'type', 'probability', 'distance_meters'])[['time', 'lat', 'lon']].apply(
+#     lambda x: {key: [float(value['lat']), float(value['lon'])] for key, value in x.set_index('time').to_dict(orient='index').items()}
+# ).reset_index().rename(columns={0: 'path'})
 
-visit = pd.merge(visit, timelinepath, how='left', on = ['key'], suffixes = ('_visit', '_timelinepath'))
-visit = visit.drop(['key'], axis=1)
-visit = visit[visit['time'].between(visit['start_time'], visit['end_time'])]
+# activity = pd.merge(activity, activity_right, how='left', on = ['start_time', 'end_time', 'start_lat', 'start_lon', 'end_lat', 'end_lon', 'type', 'probability', 'distance_meters'])
+# activity = activity.drop(['key'], axis=1)
 
-visit = visit.groupby(['start_time', 'end_time', 'hierarchy_level', 'lat_visit', 'lon_visit', 'probability', 'is_timeless_visit'])[['time', 'lat_timelinepath', 'lon_timelinepath']].apply(
-    lambda x: {key: [float(value['lat_timelinepath']), float(value['lon_timelinepath'])] for key, value in x.set_index('time').to_dict(orient='index').items()}
-).reset_index().rename(columns={0: 'path'})
+# activity['color'] = activity['type'].map({
+#     'in bus': 'red',
+#     'in passenger vehicle': 'blue',
+#     'walking': 'green',
+#     'motorcycling': 'yellow',
+#     'unknown': 'black'
+# })
 
-visit = visit[visit['hierarchy_level'].astype(int) == 0]
+# activity = activity.reset_index(drop=True)
 
-visit['duration'] = visit['end_time'] - visit['start_time']
-visit['duration'] = visit['duration'].apply(lambda x: '{} hours {} minutes'.format(int(divmod(x, 60*60)[0]), int(divmod(divmod(x, 60*60)[1], 60)[0])))
+# # Join visit and timelinePath
+# visit['key'] = 1
+# timelinepath['key'] = 1
 
-visit.columns = ['start_time', 'end_time', 'hierarchy_level', 'lat', 'lon', 'probability', 'is_timeless_visit', 'path', 'duration']
+# visit_right = pd.merge(visit, timelinepath, how='left', on = ['key'], suffixes = ('_visit', '_timelinepath'))
+# visit_right = visit_right.drop(['key'], axis=1)
+# visit_right = visit_right[visit_right['time'].between(visit_right['start_time'], visit_right['end_time'])]
 
-visit = visit.reset_index(drop=True)
+# visit_right = visit_right.groupby(['start_time', 'end_time', 'hierarchy_level', 'lat_visit', 'lon_visit', 'probability', 'is_timeless_visit'])[['time', 'lat_timelinepath', 'lon_timelinepath']].apply(
+#     lambda x: {key: [float(value['lat_timelinepath']), float(value['lon_timelinepath'])] for key, value in x.set_index('time').to_dict(orient='index').items()}
+# ).reset_index().rename(columns={0: 'path'})
+
+# visit_right = visit_right.rename(columns={'lat_visit': 'lat', 'lon_visit': 'lon'})
+
+# visit = pd.merge(visit, visit_right, how='left', on = ['start_time', 'end_time', 'hierarchy_level', 'lat', 'lon', 'probability', 'is_timeless_visit'])
+# visit = visit.drop(['key'], axis=1)
+
+# visit['duration'] = visit['end_time'] - visit['start_time']
+# visit['duration'] = visit['duration'].apply(lambda x: '{} hours {} minutes'.format(int(divmod(x, 60*60)[0]), int(divmod(divmod(x, 60*60)[1], 60)[0])))
+
+# visit.columns = ['start_time', 'end_time', 'hierarchy_level', 'lat', 'lon', 'probability', 'is_timeless_visit', 'path', 'duration']
+
+# visit = visit.reset_index(drop=True)
