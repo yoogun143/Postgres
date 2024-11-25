@@ -84,10 +84,16 @@ activity['end_lon'] = activity['end_point'].apply(lambda x: x[1])
 activity = activity[['startTime', 'endTime', 'start_lat', 'start_lon', 'end_lat', 'end_lon', 'topCandidate.type', 'probability', 'distanceMeters']]
 activity.columns = ['start_time', 'end_time', 'start_lat', 'start_lon', 'end_lat', 'end_lon', 'type', 'probability', 'distance_meters']
 
+## Run gmap.dim_location
+from load_warehouse import excel_to_pandas, pandas_to_warehouse
 
-from create_table import create_table
+fk_date = datetime.now().strftime('%Y%m%d')
+schema = 'gmap'
+table = 'dim_location'
 
-create_table(schema='gmap',table='fact_activity')
+df = excel_to_pandas('raw\dim_location.xlsx')
+pandas_to_warehouse(df, schema=schema, table=table)
+
 
 # activity[activity['end_time'].between(1729707612-86400, 1729707612+86400)]
 # visit[visit['end_time'].between(1729707612-86400, 1729707612+86400)]

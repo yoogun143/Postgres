@@ -10,6 +10,8 @@ from psycopg2 import sql
 import pandas as pd
 import os
 
+import xlwings as xw
+
 from helper.config import load_config
 from helper.string_manipulation import sql_to_list,get_column_name_from_create_table,comma_separated_to_list
 from helper.api_manipulation import api_to_pandas,gen_arguments
@@ -254,6 +256,84 @@ def staging_to_warehouse(schema: str, table: str, fk_date: str) -> None:
 
     else: 
         raise ValueError('Table name must starts with dim_ OR fact_ OR factless_')
+    
+def excel_to_pandas(data_path: str, sheet_name: str = 'Sheet1') -> pd.DataFrame:
+    
+    """
+    Reads data from an Excel worksheet into a Pandas DataFrame.
+
+    Parameters:
+    - data_path (str): Path to the Excel file.
+    - sheet_name (str, optional): Name of the worksheet to read from. Defaults to 'Sheet1'.
+
+    Returns:
+    - pd.DataFrame: A DataFrame containing the data from the Excel sheet, with the first row as column headers.
+    """
+    wb = xw.Book(data_path)
+    sheet1 = wb.sheets[sheet_name]
+    df = pd.DataFrame(sheet1['A1'].expand().value)
+    new_header = df.iloc[0] #grab the first row for the header
+    df = df[1:] #take the data less the header row
+    df.columns = new_header #set the header row as the df header
+
+    ### Close and Save Workbook
+    wb.save()
+    # wb.close()
+    wb.app.quit()
+
+    return df
+
+def pandas_to_warehouse(df:pd.DataFrame, schema:str, table:str) -> None:
+    """
+    Inserts data from a Pandas DataFrame into a PostgreSQL table. Truncates the table before inserting the new data.
+    
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing data to be inserted into the table.
+    - schema (str): The schema name where the table is located.
+    - table (str): The table name where data will be inserted.
+    
+    Raises:
+    - psycopg2.DatabaseError: If there is an issue with the database connection or execution.
+    - Exception: For any other unexpected errors during the insertion process.
+    
+    Note:
+    - The function assumes the existence of a SQL file that contains the table creation commands.
+    - The table is truncated before inserting new data.
+    - The function uses batch execution for efficient data insertion.
+    - Prints status messages for each executed SQL command and confirms the number of rows inserted.
+    """
+    columns = ','.join(list(df.columns))
+
+    # create VALUES('%s', '%s",...) one '%s' per column
+    values = "VALUES({})".format(",".join(["%s" for _ in df.columns])) 
+
+    #create INSERT INTO table (columns) VALUES('%s',...)
+    insert_stmt = f"INSERT INTO {schema}.{table} ({columns}) {values}"
+
+    commands = sql_to_list(f'etl/sql/{schema}/{table}/create_table.sql')
+
+    try:
+        config = load_config()
+        with psycopg2.connect(**config) as conn:
+            with conn.cursor() as cur:
+
+                ### Create table if not exists
+                for command in commands[:-1]:
+                    cur.execute(command, {'schema': AsIs(schema), 'table': AsIs(table)})
+                    print(cur.statusmessage)
+
+                ### Tuncate table
+                cur.execute(f"TRUNCATE TABLE {schema}.{table}")
+                
+                ### Insert 
+                extras.execute_batch(cur, insert_stmt, df.values)
+
+                conn.commit()
+
+                print(f"Inserted {len(df)} rows of csv to {schema}.{table}")
+
+    except (psycopg2.DatabaseError, Exception) as error:
+        print(error)    
 
 if __name__ == '__main__':
     arguments_dict=gen_arguments(symbol=['MWG','FPT','VNM','VND'],from_date='2024-06-01',to_date='2024-06-21')
