@@ -3,6 +3,9 @@ import numpy as np
 import json
 from datetime import datetime
 
+from helper.config import load_config
+import psycopg2
+
 pd.options.mode.chained_assignment = None  # default='warn'
 pd.options.mode.copy_on_write = True
 
@@ -57,20 +60,20 @@ normalized = pd.json_normalize(timelinepath_explode['timelinePath'])
 timelinepath = pd.concat([timelinepath_explode['startTime'], normalized], axis=1)
 timelinepath['point']  = timelinepath['point'].apply(lambda x: x.replace('geo:',''))
 timelinepath['point']  = timelinepath['point'].apply(lambda x: x.split(','))
-timelinepath['time'] = timelinepath['startTime'] + timelinepath['durationMinutesOffsetFromStartTime'].astype(int) * 60
+timelinepath['txtime'] = timelinepath['startTime'] + timelinepath['durationMinutesOffsetFromStartTime'].astype(int) * 60
 timelinepath['lat'] = timelinepath['point'].apply(lambda x: x[0])
 timelinepath['lon'] = timelinepath['point'].apply(lambda x: x[1])
-timelinepath = timelinepath[['time', 'lat', 'lon']]
-timelinepath = timelinepath.drop_duplicates(subset=['time'], keep='first')
+timelinepath = timelinepath[['txtime', 'lat', 'lon']]
+timelinepath = timelinepath.drop_duplicates(subset=['txtime'], keep='first')
 
 # clean visit
 visit['point'] = visit['topCandidate.placeLocation'].apply(lambda x: x.replace('geo:',''))
 visit['point']  = visit['point'].apply(lambda x: x.split(','))
 visit['lat'] = visit['point'].apply(lambda x: x[0])
 visit['lon'] = visit['point'].apply(lambda x: x[1])
-visit['isTimelessVisit'] = visit['isTimelessVisit'].map({'true': 1, 'false': 0})
-visit = visit[['startTime', 'endTime', 'hierarchyLevel','lat', 'lon', 'probability', 'isTimelessVisit']]
-visit.columns = ['start_time', 'end_time', 'hierarchy_level', 'lat', 'lon', 'probability', 'is_timeless_visit']
+# visit['isTimelessVisit'] = visit['isTimelessVisit'].map({'true': 1, 'false': 0})
+visit = visit[['startTime', 'endTime','lat', 'lon', 'probability', 'isTimelessVisit']]
+visit.columns = ['start_time', 'end_time', 'lat', 'lon', 'probability', 'is_timeless_visit']
 
 # clean activity
 activity['start_point'] = activity['start'].apply(lambda x: x.replace('geo:',''))
@@ -94,6 +97,72 @@ table = 'dim_location'
 df = excel_to_pandas('raw\dim_location.xlsx')
 pandas_to_warehouse(df, schema=schema, table=table)
 
+## Run gmap.fact_timelinepath
+fk_date = datetime.now().strftime('%Y%m%d')
+schema = 'gmap'
+table = 'fact_timelinepath'
+
+from_date = 20241001
+to_date = 20241031
+
+from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp())
+to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp())
+
+timelinepath_export = timelinepath[timelinepath['txtime'].between(from_date_unix, to_date_unix)]
+
+pandas_to_warehouse(timelinepath_export, schema=schema, table=table, truncate=False)
+
+## Run gmap.fact_visit
+fk_date = datetime.now().strftime('%Y%m%d')
+schema = 'gmap'
+table = 'fact_visit'
+
+config = load_config()
+with psycopg2.connect(**config) as conn:
+    with conn.cursor() as cur:
+            cur.execute(f"SELECT * FROM gmap.dim_location")
+            stored_location = pd.DataFrame(cur.fetchall(), columns=[desc[0] for desc in cur.description]) 
+
+import math
+
+def haversine(lat1, lon1, lat2, lon2):
+    # Convert latitude and longitude from degrees to radians
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    
+    # Radius of Earth in kilometers (mean radius)
+    r = 6371.0
+    return c * r
+
+from scipy.spatial import cKDTree
+import numpy as np
+
+# Ensure lat and lon columns are numeric in both DataFrames
+visit['lat'] = pd.to_numeric(visit['lat'], errors='coerce')
+visit['lon'] = pd.to_numeric(visit['lon'], errors='coerce')
+stored_location['lat'] = pd.to_numeric(stored_location['lat'], errors='coerce')
+stored_location['lon'] = pd.to_numeric(stored_location['lon'], errors='coerce')
+
+# Prepare data
+visit_coords = np.radians(visit[['lat', 'lon']].to_numpy())
+stored_coords = np.radians(stored_location[['lat', 'lon']].to_numpy())
+
+# Build a KDTree
+tree = cKDTree(stored_coords)
+
+# Query the nearest neighbors
+distances, indices = tree.query(visit_coords, k=1)
+
+# Assign the nearest location_id to the visit DataFrame
+visit['location_id'] = stored_location.iloc[indices]['location_id'].values
+visit = pd.merge(visit, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', on='location_id')
+visit['distance'] = visit.apply(lambda x: haversine(x['lat'], x['lon'], x['lat_location'], x['lon_location']), axis=1)
+visit = visit.drop_columns(['lat_location', 'lon_location'], axis=1)
 
 # activity[activity['end_time'].between(1729707612-86400, 1729707612+86400)]
 # visit[visit['end_time'].between(1729707612-86400, 1729707612+86400)]

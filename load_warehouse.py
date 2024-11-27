@@ -283,25 +283,24 @@ def excel_to_pandas(data_path: str, sheet_name: str = 'Sheet1') -> pd.DataFrame:
 
     return df
 
-def pandas_to_warehouse(df:pd.DataFrame, schema:str, table:str) -> None:
+def pandas_to_warehouse(df:pd.DataFrame, schema:str, table:str, truncate:bool=True) -> None:
     """
-    Inserts data from a Pandas DataFrame into a PostgreSQL table. Truncates the table before inserting the new data.
-    
+    Writes a Pandas DataFrame to a PostgreSQL table in a given schema.
+
     Parameters:
-    - df (pd.DataFrame): The DataFrame containing data to be inserted into the table.
-    - schema (str): The schema name where the table is located.
-    - table (str): The table name where data will be inserted.
-    
+    - df (pd.DataFrame): The DataFrame to write to the table.
+    - schema (str): The PostgreSQL schema name where the table resides.
+    - table (str): The PostgreSQL table name to write to.
+    - truncate (bool, optional): If True, truncate the table before writing. Defaults to True.
+
+    Returns:
+    - None
+
     Raises:
-    - psycopg2.DatabaseError: If there is an issue with the database connection or execution.
-    - Exception: For any other unexpected errors during the insertion process.
-    
-    Note:
-    - The function assumes the existence of a SQL file that contains the table creation commands.
-    - The table is truncated before inserting new data.
-    - The function uses batch execution for efficient data insertion.
-    - Prints status messages for each executed SQL command and confirms the number of rows inserted.
+    - psycopg2.DatabaseError: If there is a PostgreSQL error.
+    - Exception: If there is any other error.
     """
+
     columns = ','.join(list(df.columns))
 
     # create VALUES('%s', '%s",...) one '%s' per column
@@ -322,9 +321,10 @@ def pandas_to_warehouse(df:pd.DataFrame, schema:str, table:str) -> None:
                     cur.execute(command, {'schema': AsIs(schema), 'table': AsIs(table)})
                     print(cur.statusmessage)
 
-                ### Tuncate table
-                cur.execute(f"TRUNCATE TABLE {schema}.{table}")
-                
+                if truncate:
+                    ### Truncate table
+                    cur.execute(f"TRUNCATE TABLE {schema}.{table}")
+                    
                 ### Insert 
                 extras.execute_batch(cur, insert_stmt, df.values)
 
