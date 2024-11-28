@@ -97,20 +97,20 @@ table = 'dim_location'
 df = excel_to_pandas('raw\dim_location.xlsx')
 pandas_to_warehouse(df, schema=schema, table=table)
 
-## Run gmap.fact_timelinepath
-fk_date = datetime.now().strftime('%Y%m%d')
-schema = 'gmap'
-table = 'fact_timelinepath'
+# ## Run gmap.fact_timelinepath
+# fk_date = datetime.now().strftime('%Y%m%d')
+# schema = 'gmap'
+# table = 'fact_timelinepath'
 
-from_date = 20241001
-to_date = 20241031
+# from_date = 20241001
+# to_date = 20241031
 
-from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp())
-to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp())
+# from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp())
+# to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp())
 
-timelinepath_export = timelinepath[timelinepath['txtime'].between(from_date_unix, to_date_unix)]
+# timelinepath_export = timelinepath[timelinepath['txtime'].between(from_date_unix, to_date_unix)]
 
-pandas_to_warehouse(timelinepath_export, schema=schema, table=table, truncate=False)
+# pandas_to_warehouse(timelinepath_export, schema=schema, table=table, truncate=False)
 
 ## Run gmap.fact_visit
 fk_date = datetime.now().strftime('%Y%m%d')
@@ -162,7 +162,8 @@ distances, indices = tree.query(visit_coords, k=1)
 visit['location_id'] = stored_location.iloc[indices]['location_id'].values
 visit = pd.merge(visit, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', on='location_id')
 visit['distance'] = visit.apply(lambda x: haversine(x['lat'], x['lon'], x['lat_location'], x['lon_location']), axis=1)
-visit = visit.drop_columns(['lat_location', 'lon_location'], axis=1)
+visit = visit.drop(['lat_location', 'lon_location'], axis=1)
+
 
 # activity[activity['end_time'].between(1729707612-86400, 1729707612+86400)]
 # visit[visit['end_time'].between(1729707612-86400, 1729707612+86400)]
