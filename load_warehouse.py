@@ -303,6 +303,8 @@ def pandas_to_warehouse(df:pd.DataFrame, schema:str, table:str, truncate:bool=Tr
 
     columns = ','.join(list(df.columns))
 
+    df = df.fillna(AsIs('Null'))
+
     # create VALUES('%s', '%s",...) one '%s' per column
     values = "VALUES({})".format(",".join(["%s" for _ in df.columns])) 
 
