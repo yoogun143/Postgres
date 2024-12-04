@@ -4,6 +4,6 @@ CREATE TABLE IF NOT EXISTS %(schema)s.%(table)s
    ,location_name varchar(50)
    ,category      varchar(50)
    ,address       text
-   ,lat           decimal(38,10)
-   ,lon           decimal(38,10)
+   ,lat           decimal(9,6)
+   ,lon           decimal(9,6)
   ); 

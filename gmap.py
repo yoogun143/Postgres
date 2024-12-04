@@ -9,11 +9,35 @@ import psycopg2
 pd.options.mode.chained_assignment = None  # default='warn'
 pd.options.mode.copy_on_write = True
 
+from scipy.spatial import cKDTree
+import numpy as np
+
+## Run gmap.dim_location
+from load_warehouse import excel_to_pandas, pandas_to_warehouse
+
+fk_date = datetime.now().strftime('%Y%m%d')
+schema = 'gmap'
+table = 'dim_location'
+
+from_date = 20241101
+to_date = 20241101
+
+from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp())
+to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp())
+
+df = excel_to_pandas('raw\dim_location.xlsx')
+pandas_to_warehouse(df, schema=schema, table=table)
+
 config = load_config()
 with psycopg2.connect(**config) as conn:
     with conn.cursor() as cur:
             cur.execute(f"SELECT * FROM gmap.dim_location")
             stored_location = pd.DataFrame(cur.fetchall(), columns=[desc[0] for desc in cur.description]) 
+
+stored_location['lat'] = pd.to_numeric(stored_location['lat'], errors='coerce')
+stored_location['lon'] = pd.to_numeric(stored_location['lon'], errors='coerce')
+stored_coords = np.radians(stored_location[['lat', 'lon']].to_numpy())
+tree = cKDTree(stored_coords)
 
 import math
 
@@ -30,9 +54,6 @@ def haversine(lat1, lon1, lat2, lon2):
     # Radius of Earth in kilometers (mean radius)
     r = 6371.0
     return c * r
-
-from scipy.spatial import cKDTree
-import numpy as np
 
 df_path = 'raw\location-history.json'
 with open(df_path, 'r') as f:
@@ -112,84 +133,54 @@ activity['end_lon'] = activity['end_point'].apply(lambda x: x[1])
 activity = activity[['startTime', 'endTime', 'start_lat', 'end_lat', 'start_lon', 'end_lon', 'topCandidate.type', 'probability', 'distanceMeters']]
 activity.columns = ['start_time', 'end_time', 'start_lat', 'end_lat', 'start_lon', 'end_lon', 'vehicle_type', 'probability', 'distance_meters']
 
-## Run gmap.dim_location
-from load_warehouse import excel_to_pandas, pandas_to_warehouse
+## Run gmap.fact_timelinepath
+table = 'fact_timelinepath'
 
-fk_date = datetime.now().strftime('%Y%m%d')
-schema = 'gmap'
-table = 'dim_location'
+timelinepath = timelinepath[timelinepath['txtime'].between(from_date_unix, to_date_unix)]
 
-df = excel_to_pandas('raw\dim_location.xlsx')
-pandas_to_warehouse(df, schema=schema, table=table)
+pandas_to_warehouse(timelinepath, schema=schema, table=table, truncate=False)
 
-# ## Run gmap.fact_timelinepath
-# fk_date = datetime.now().strftime('%Y%m%d')
-# schema = 'gmap'
-# table = 'fact_timelinepath'
+## Run gmap.fact_visit
+## Run gmap.fact_visit
 
-# from_date = 20241001
-# to_date = 20241031
-
-# from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp())
-# to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp())
-
-# timelinepath = timelinepath[timelinepath['txtime'].between(from_date_unix, to_date_unix)]
-
-# pandas_to_warehouse(timelinepath, schema=schema, table=table, truncate=False)
-
-# ## Run gmap.fact_visit
-# fk_date = datetime.now().strftime('%Y%m%d')
-# schema = 'gmap'
-# table = 'fact_visit'
-
-# from_date = 20241026
-# to_date = 20241026
-
-# from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp())
-# to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp())
-
-# visit = visit[visit['start_time'].between(from_date_unix, to_date_unix)]
-
-# # Ensure lat and lon columns are numeric in both DataFrames
-# visit['lat'] = pd.to_numeric(visit['lat'], errors='coerce')
-# visit['lon'] = pd.to_numeric(visit['lon'], errors='coerce')
-# stored_location['lat'] = pd.to_numeric(stored_location['lat'], errors='coerce')
-# stored_location['lon'] = pd.to_numeric(stored_location['lon'], errors='coerce')
-
-# # Prepare data
-# visit_coords = np.radians(visit[['lat', 'lon']].to_numpy())
-# stored_coords = np.radians(stored_location[['lat', 'lon']].to_numpy())
-
-# # Build a KDTree
-# tree = cKDTree(stored_coords)
-
-# # Query the nearest neighbors
-# distances, indices = tree.query(visit_coords, k=1)
-
-# # Assign the nearest location_id to the visit DataFrame
-# visit['location_id'] = stored_location.iloc[indices]['location_id'].values
-# visit = pd.merge(visit, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', on='location_id')
-# visit['distance'] = visit.apply(lambda x: haversine(x['lat'], x['lon'], x['lat_location'], x['lon_location']), axis=1)
-# visit = visit.drop(['lat_location', 'lon_location'], axis=1)
-
-# visit = visit[['start_time', 'end_time', 'location_id', 'lat', 'lon', 'probability', 'is_timeless_visit']]
-
-# pandas_to_warehouse(visit, schema=schema, table=table, truncate=True)
-
-## Run gmap.fact_activivity
-fk_date = datetime.now().strftime('%Y%m%d')
-schema = 'gmap'
 table = 'fact_visit'
+visit = visit[visit['start_time'].between(from_date_unix, to_date_unix)]
+# Ensure lat and lon columns are numeric in both DataFrames
+visit[['lat', 'lon']] = visit[['lat', 'lon']].apply(pd.to_numeric, errors='coerce')
+# Prepare data
+visit_coords = np.radians(visit[['lat', 'lon']].to_numpy())
+# Query the nearest neighbors
+distances, indices = tree.query(visit_coords, k=1)
+# Assign the nearest location_id to the visit DataFrame
+visit['location_id'] = stored_location.iloc[indices]['location_id'].values
+visit = pd.merge(visit, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', on='location_id')
+visit['distance'] = visit.apply(lambda x: haversine(x['lat'], x['lon'], x['lat_location'], x['lon_location']), axis=1)
+visit = visit.drop(['lat_location', 'lon_location'], axis=1)
+visit = visit[['start_time', 'end_time', 'location_id', 'lat', 'lon', 'probability', 'is_timeless_visit']]
+pandas_to_warehouse(visit, schema=schema, table=table, truncate=True)
 
-from_date = 20241026
-to_date = 20241026
-
-from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp())
-to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp())
-
+## Run gmap.fact_activity
+table = 'fact_activity'
 activity = activity[activity['start_time'].between(from_date_unix, to_date_unix)]
-
-
+# Ensure lat and lon columns are numeric in both DataFrames
+activity[['start_lat', 'start_lon', 'end_lat', 'end_lon']] = activity[['start_lat', 'start_lon', 'end_lat', 'end_lon']].apply(pd.to_numeric, errors='coerce')
+# Prepare data
+activity_start_coords = np.radians(activity[['start_lat', 'start_lon']].to_numpy())
+activity_end_coords = np.radians(activity[['end_lat', 'end_lon']].to_numpy())
+# Query the nearest neighbors
+start_distances, start_indices = tree.query(activity_start_coords, k=1)
+end_distances, end_indices = tree.query(activity_end_coords, k=1)
+# Assign the nearest location_id to the visit DataFrame
+activity['start_location_id'] = stored_location.iloc[start_indices]['location_id'].values
+activity['end_location_id'] = stored_location.iloc[end_indices]['location_id'].values
+activity = pd.merge(activity, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', left_on='start_location_id', right_on = 'location_id')
+activity['distance_start'] = activity.apply(lambda x: haversine(x['start_lat'], x['start_lon'], x['lat_location'], x['lon_location']), axis=1)
+activity = activity.drop(['lat_location', 'lon_location', 'location_id'], axis=1)
+activity = pd.merge(activity, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', left_on='end_location_id', right_on = 'location_id')
+activity['distance_end'] = activity.apply(lambda x: haversine(x['end_lat'], x['end_lon'], x['lat_location'], x['lon_location']), axis=1)
+activity = activity.drop(['lat_location', 'lon_location', 'location_id'], axis=1)
+activity = activity[['start_time', 'end_time', 'start_location_id', 'start_lat', 'start_lon', 'end_location_id', 'end_lat', 'end_lon', 'vehicle_type', 'probability', 'distance_meters']]
+pandas_to_warehouse(activity, schema=schema, table=table, truncate=True)
 
 
 
