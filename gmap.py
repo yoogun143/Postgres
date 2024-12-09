@@ -23,24 +23,37 @@ from_date = 20241101
 to_date = 20241101
 
 # Convert dates to UNIX timestamps
-from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp())
-to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp())
+from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) + 25200 # Add 7 hours
+to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp()) + 25200 # Add 7 hours
 
 # Create tree from dim_location
 def build_tree():
-    # Load data
     """
-    Load location data from Excel, store it in dim_location in PostgreSQL, and
-    build a cKDTree from the coordinates.
+    Loads location data from Excel, stores it in dim_location in PostgreSQL, and
+    builds a cKDTree from the coordinates.
 
     Returns
     -------
     tree : cKDTree
         A cKDTree object from the coordinates of the stored location data.
+    stored_location : pd.DataFrame
+        The stored location data, with columns 'lat' and 'lon' converted to numeric values.
+
+    Notes
+    -----
+    This function is used to build the cKDTree from the stored location data.
+    The cKDTree is used to quickly find the nearest location to a given coordinate.
     """
+    print(f'Starting to build tree at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+
+    # Load data from Excel
     df = excel_to_pandas('raw/dim_location.xlsx')
+
+    # Store data in dim_location in PostgreSQL
     table = 'dim_location'
     pandas_to_warehouse(df, schema=schema, table=table)
+
+    print(f'Finished loading data from Excel at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
 
     # Fetch stored location data
     config = load_config()
@@ -49,19 +62,27 @@ def build_tree():
             cur.execute(f"SELECT * FROM gmap.dim_location")
             stored_location = pd.DataFrame(cur.fetchall(), columns=[desc[0] for desc in cur.description])
 
+    print(f'Finished fetching stored location data at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+
     # Process coordinates
     stored_location['lat'] = pd.to_numeric(stored_location['lat'], errors='coerce')
     stored_location['lon'] = pd.to_numeric(stored_location['lon'], errors='coerce')
     stored_coords = np.radians(stored_location[['lat', 'lon']].to_numpy())
+
+    print(f'Finished processing coordinates at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+
+    # Build cKDTree
     tree = cKDTree(stored_coords)
+
+    print(f'Finished building cKDTree at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
 
     return tree, stored_location
 
 tree, stored_location = build_tree()
 
-def pre_process_json():
+def pre_process_json(df_path='raw\location-history.json'):
     """
-    Pre-processes the JSON file downloaded from Google Takeout. The file must be located in the 'raw' directory.
+    Pre-processes the JSON file downloaded from Google Maps.
 
     The function reads the JSON file, normalizes it, and processes the data. The data is filtered to only include records with a 'visit' or 'activity'.
     The 'visit' records are further filtered to only include records with a 'hierarchyLevel' of 0. The 'activity' records are also filtered to only include records with a 'hierarchyLevel' of 0.
@@ -69,54 +90,68 @@ def pre_process_json():
     The 'visit' records are cleaned to only include the 'startTime', 'endTime', 'lat', 'lon', 'probability', and 'isTimelessVisit' columns.
     The 'activity' records are cleaned to only include the 'startTime', 'endTime', 'start_lat', 'end_lat', 'start_lon', 'end_lon', 'topCandidate.type', 'probability', and 'distanceMeters' columns.
 
-    The function returns three DataFrames: 'visit', 'activity', and 'timelinepath'.
+    Parameters
+    ----------
+    df_path : str, optional
+        The path to the JSON file. Defaults to 'raw\location-history.json' if not provided.
+
+    Returns
+    -------
+    visit : pd.DataFrame
+        A DataFrame containing the pre-processed 'visit' records.
+    activity : pd.DataFrame
+        A DataFrame containing the pre-processed 'activity' records.
+    timelinepath : pd.DataFrame
+        A DataFrame containing the pre-processed 'timelinePath' records.
     """
-    df_path = 'raw\location-history.json'
+    print(f"Reading JSON data from {df_path}")
     with open(df_path, 'r') as f:
         data_json = json.load(f)
     df = pd.json_normalize(data_json)
 
-    # Convert to datetime GMT +7
+    print("Converting timestamps to datetime with GMT +7 offset")
     df['startTime'] = pd.to_datetime(df['startTime'],utc=True) + pd.Timedelta('07:00:00')
     df['endTime'] = pd.to_datetime(df['endTime'], utc=True) + pd.Timedelta('07:00:00')
     df['startTime'] = df['startTime'].map(pd.Timestamp.timestamp).astype(int)
     df['endTime'] = df['endTime'].map(pd.Timestamp.timestamp).astype(int)
 
-    # Get columns with visit, activity, timelinePath
+    print("Identifying columns for visits, activities, and timelinePaths")
     visit_cols = list(df.columns[df.columns.str.contains('visit')])
     activity_cols = list(df.columns[df.columns.str.contains('activity')])
     timelinepath_cols = list(df.columns[df.columns.str.contains('timelinePath')])
     time_cols = ['startTime', 'endTime']
 
-    # Check columns right
+    print("Verifying column integrity")
     assert len(visit_cols) + len(activity_cols) + len(timelinepath_cols) + len(time_cols) == len(df.columns)  
 
-    # assert duration between start_time and end_time of activity and visit are not intersect
+    print("Filtering visit and activity records")
     visit_activity = df[df[timelinepath_cols].isna().sum(axis=1) == len(timelinepath_cols)]
     visit_activity = visit_activity[visit_activity['visit.hierarchyLevel'].fillna('0') == '0']
     visit_activity = visit_activity.sort_values(['startTime'])
 
+    print("Calculating time differences between records")
     visit_activity['startTime_human'] = pd.to_datetime(visit_activity['startTime'], unit = 's')
     visit_activity['endTime_human'] = pd.to_datetime(visit_activity['endTime'], unit = 's')
-    visit_activity['endTime_lag'] = visit_activity['endTime'].shift(1).astype("Int64")
+    visit_activity['endTime_lag'] = visit_activity['endTime'].shift(1).astype('Int64')
     visit_activity['start_time_minus_prev_end_time'] = visit_activity['startTime'] - visit_activity['endTime_lag']
 
-    # visit_activity[visit_activity['start_time_minus_prev_end_time'] > 0]
-    # visit_activity[visit_activity['endTime'].between(1729707612-86400, 1729707612+86400)]
+    assert len(visit_activity[visit_activity['start_time_minus_prev_end_time'] < 0]) == 0
+    assert len(visit_activity[(visit_activity['start_time_minus_prev_end_time'] > 0) & (visit_activity['startTime'] > 1729707612)]) == 0
 
+    print("Adjusting overlapping start times")
     visit_activity['startTime'] = visit_activity['startTime'].mask(visit_activity['start_time_minus_prev_end_time'] == 0, visit_activity['startTime'] + 1)
     visit_activity['duration'] = visit_activity['endTime'] - visit_activity['startTime']
 
-    # Get visit, activity, timelinePath
+    print("Separating visit, activity, and timelinePath data")
     activity = visit_activity[visit_activity[visit_cols].isna().sum(axis=1) == len(visit_cols)][time_cols + activity_cols]
     visit = visit_activity[visit_activity[activity_cols].isna().sum(axis=1) == len(activity_cols)][time_cols + visit_cols]
     timelinepath = df[df[timelinepath_cols].isna().sum(axis=1) != len(timelinepath_cols)][time_cols + timelinepath_cols]
 
-    # Rename columns
+    print("Renaming columns")
     visit.columns = visit.columns.str.replace('visit.', '')
     activity.columns = activity.columns.str.replace('activity.', '')
 
-    # clean timelinePath
+    print("Processing timelinePath data")
     timelinepath_explode = timelinepath.explode('timelinePath', ignore_index=True)
     normalized = pd.json_normalize(timelinepath_explode['timelinePath'])
     timelinepath = pd.concat([timelinepath_explode['startTime'], normalized], axis=1)
@@ -128,7 +163,7 @@ def pre_process_json():
     timelinepath = timelinepath[['txtime', 'lat', 'lon']]
     timelinepath = timelinepath.drop_duplicates(subset=['txtime'], keep='first')
 
-    # clean visit
+    print("Processing visit data")
     visit['point'] = visit['topCandidate.placeLocation'].apply(lambda x: x.replace('geo:',''))
     visit['point']  = visit['point'].apply(lambda x: x.split(','))
     visit['lat'] = visit['point'].apply(lambda x: x[0])
@@ -137,7 +172,7 @@ def pre_process_json():
     visit = visit[['startTime', 'endTime','lat', 'lon', 'probability', 'isTimelessVisit']]
     visit.columns = ['start_time', 'end_time', 'lat', 'lon', 'probability', 'is_timeless_visit']
 
-    # clean activity
+    print("Processing activity data")
     activity['start_point'] = activity['start'].apply(lambda x: x.replace('geo:',''))
     activity['start_point']  = activity['start_point'].apply(lambda x: x.split(','))
     activity['start_lat'] = activity['start_point'].apply(lambda x: x[0])
@@ -149,11 +184,12 @@ def pre_process_json():
     activity = activity[['startTime', 'endTime', 'start_lat', 'end_lat', 'start_lon', 'end_lon', 'topCandidate.type', 'probability', 'distanceMeters']]
     activity.columns = ['start_time', 'end_time', 'start_lat', 'end_lat', 'start_lon', 'end_lon', 'vehicle_type', 'probability', 'distance_meters']
 
+    print("Pre-processing completed")
     return visit, activity, timelinepath
 
 visit, activity, timelinepath = pre_process_json()
 
-def export_timelinepath():
+def export_timelinepath(timelinepath: pd.DataFrame) -> None:
     """
     Export timelinepath data to PostgreSQL table gmap.fact_timelinepath.
     
@@ -163,39 +199,49 @@ def export_timelinepath():
     
     Parameters
     ----------
-    None
+    timelinepath : pd.DataFrame
+        The timelinepath data to export.
     
     Returns
     -------
     None
     """
+    # Print initial state
+    print("Starting export_timelinepath")
+    print(f"Initial number of records: {len(timelinepath)}")
     
-    table = 'fact_timelinepath'
+    # Filter timelinepath data by txtime
     timelinepath = timelinepath[timelinepath['txtime'].between(from_date_unix, to_date_unix)]
+    print(f"Number of records after filtering: {len(timelinepath)}")
+
+    # Export timelinepath data to PostgreSQL table
+    table = 'fact_timelinepath'
+    print(f"Exporting data to table: {schema}.{table}")
     pandas_to_warehouse(timelinepath, schema=schema, table=table, truncate=False)
+    print("Export completed")
 
-export_timelinepath()  
+export_timelinepath(timelinepath)  
 
-def export_visit():
+def export_visit(visit: pd.DataFrame) -> None:
     """
     Export visit data to the PostgreSQL table gmap.fact_visit.
 
-    Filters visit data by start_time between from_date_unix and to_date_unix, ensuring 
-    latitude and longitude columns are numeric. Computes the nearest location_id 
-    using a spatial query and calculates the distance from the stored location coordinates.
-    The processed data is then exported to the specified PostgreSQL table, truncating 
-    the table before inserting new data.
-
     Parameters
     ----------
-    None
+    visit : pd.DataFrame
+        The visit data to export. Must contain columns 'start_time' and 'end_time' of type np.datetime64 or pd.Timestamp,
+        'lat' and 'lon' of type float64, 'probability' of type float64, and 'is_timeless_visit' of type bool.
 
     Returns
     -------
     None
     """
+    print("Starting export_visit")
     table = 'fact_visit'
+    print(f"Exporting data to table: {schema}.{table}")
+    # Filter visit data by start_time
     visit = visit[visit['start_time'].between(from_date_unix, to_date_unix)]
+    print(f"Number of records after filtering: {len(visit)}")
     # Ensure lat and lon columns are numeric in both DataFrames
     visit[['lat', 'lon']] = visit[['lat', 'lon']].apply(pd.to_numeric, errors='coerce')
     # Prepare data
@@ -204,105 +250,77 @@ def export_visit():
     distances, indices = tree.query(visit_coords, k=1)
     # Assign the nearest location_id to the visit DataFrame
     visit['location_id'] = stored_location.iloc[indices]['location_id'].values
+    # Join the location_id to the stored_location DataFrame
     visit = pd.merge(visit, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', on='location_id')
+    print(f"Number of records after joining: {len(visit)}")
+    # Calculate the distance from the stored location coordinates
     visit['distance'] = visit.apply(lambda x: haversine(x['lat'], x['lon'], x['lat_location'], x['lon_location']), axis=1)
+    # Drop the lat_location and lon_location columns
     visit = visit.drop(['lat_location', 'lon_location'], axis=1)
+    # Select the columns to export
     visit = visit[['start_time', 'end_time', 'location_id', 'lat', 'lon', 'probability', 'is_timeless_visit']]
+    # Export the visit data to the PostgreSQL table
     pandas_to_warehouse(visit, schema=schema, table=table, truncate=True)
+    print("Export completed")
 
-export_visit()
+export_visit(visit)
 
-def export_activity():
+def export_activity(activity: pd.DataFrame) -> None:
     """
     Export activity data to the PostgreSQL table gmap.fact_activity.
 
-    Filters activity data by start_time between from_date_unix and to_date_unix, ensuring 
-    latitude and longitude columns are numeric. Computes the nearest location_id 
-    using a spatial query and calculates the distance from the stored location coordinates.
+    This function filters activity data by start_time between from_date_unix and to_date_unix, 
+    ensuring latitude and longitude columns are numeric. It computes the nearest location_id 
+    using a spatial query and calculates the distance from the stored location coordinates. 
     The processed data is then exported to the specified PostgreSQL table, truncating 
     the table before inserting new data.
 
     Parameters
     ----------
-    None
+    activity : pd.DataFrame
+        The activity data to export, with columns start_time, end_time, start_lat, start_lon, end_lat, end_lon, vehicle_type, probability, distance_meters.
 
     Returns
     -------
     None
     """
+    print("Starting export_activity")
     table = 'fact_activity'
+    print(f"Exporting data to table: {schema}.{table}")
+    
+    # Filter activity data by start_time
     activity = activity[activity['start_time'].between(from_date_unix, to_date_unix)]
-    # Ensure lat and lon columns are numeric in both DataFrames
+    print(f"Number of records after filtering: {len(activity)}")
+    
+    # Ensure lat and lon columns are numeric
     activity[['start_lat', 'start_lon', 'end_lat', 'end_lon']] = activity[['start_lat', 'start_lon', 'end_lat', 'end_lon']].apply(pd.to_numeric, errors='coerce')
+    
     # Prepare data
     activity_start_coords = np.radians(activity[['start_lat', 'start_lon']].to_numpy())
     activity_end_coords = np.radians(activity[['end_lat', 'end_lon']].to_numpy())
+    
     # Query the nearest neighbors
     start_distances, start_indices = tree.query(activity_start_coords, k=1)
     end_distances, end_indices = tree.query(activity_end_coords, k=1)
-    # Assign the nearest location_id to the visit DataFrame
+    
+    # Assign the nearest location_id to the activity DataFrame
     activity['start_location_id'] = stored_location.iloc[start_indices]['location_id'].values
     activity['end_location_id'] = stored_location.iloc[end_indices]['location_id'].values
-    activity = pd.merge(activity, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', left_on='start_location_id', right_on = 'location_id')
+    
+    # Calculate distances from start and end points to nearest locations
+    activity = pd.merge(activity, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', left_on='start_location_id', right_on='location_id')
     activity['distance_start'] = activity.apply(lambda x: haversine(x['start_lat'], x['start_lon'], x['lat_location'], x['lon_location']), axis=1)
     activity = activity.drop(['lat_location', 'lon_location', 'location_id'], axis=1)
-    activity = pd.merge(activity, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', left_on='end_location_id', right_on = 'location_id')
+    
+    activity = pd.merge(activity, stored_location[['location_id', 'lat', 'lon']].rename(columns={'lat': 'lat_location', 'lon': 'lon_location'}), how='left', left_on='end_location_id', right_on='location_id')
     activity['distance_end'] = activity.apply(lambda x: haversine(x['end_lat'], x['end_lon'], x['lat_location'], x['lon_location']), axis=1)
     activity = activity.drop(['lat_location', 'lon_location', 'location_id'], axis=1)
+    
+    # Select the columns to export
     activity = activity[['start_time', 'end_time', 'start_location_id', 'start_lat', 'start_lon', 'end_location_id', 'end_lat', 'end_lon', 'vehicle_type', 'probability', 'distance_meters']]
+    
+    # Export the activity data to the PostgreSQL table
     pandas_to_warehouse(activity, schema=schema, table=table, truncate=True)
+    print("Export completed")
 
-export_activity()
-
-
-# activity[activity['end_time'].between(1729707612-86400, 1729707612+86400)]
-# visit[visit['end_time'].between(1729707612-86400, 1729707612+86400)]
-
-# # Join activity and timelinePath
-# activity['key'] = 1
-# timelinepath['key'] = 1
-
-# activity_right = pd.merge(activity, timelinepath, how='left', on = ['key'], suffixes = ('_activity', '_timelinepath'))
-# activity_right = activity_right.drop(['key'], axis=1)
-# activity_right = activity_right[activity_right['time'].between(activity_right['start_time'], activity_right['end_time'])]
-
-# activity_right = activity_right.groupby(['start_time', 'end_time', 'start_lat', 'start_lon', 'end_lat', 'end_lon', 'type', 'probability', 'distance_meters'])[['time', 'lat', 'lon']].apply(
-#     lambda x: {key: [float(value['lat']), float(value['lon'])] for key, value in x.set_index('time').to_dict(orient='index').items()}
-# ).reset_index().rename(columns={0: 'path'})
-
-# activity = pd.merge(activity, activity_right, how='left', on = ['start_time', 'end_time', 'start_lat', 'start_lon', 'end_lat', 'end_lon', 'type', 'probability', 'distance_meters'])
-# activity = activity.drop(['key'], axis=1)
-
-# activity['color'] = activity['type'].map({
-#     'in bus': 'red',
-#     'in passenger vehicle': 'blue',
-#     'walking': 'green',
-#     'motorcycling': 'yellow',
-#     'unknown': 'black'
-# })
-
-# activity = activity.reset_index(drop=True)
-
-# # Join visit and timelinePath
-# visit['key'] = 1
-# timelinepath['key'] = 1
-
-# visit_right = pd.merge(visit, timelinepath, how='left', on = ['key'], suffixes = ('_visit', '_timelinepath'))
-# visit_right = visit_right.drop(['key'], axis=1)
-# visit_right = visit_right[visit_right['time'].between(visit_right['start_time'], visit_right['end_time'])]
-
-# visit_right = visit_right.groupby(['start_time', 'end_time', 'hierarchy_level', 'lat_visit', 'lon_visit', 'probability', 'is_timeless_visit'])[['time', 'lat_timelinepath', 'lon_timelinepath']].apply(
-#     lambda x: {key: [float(value['lat_timelinepath']), float(value['lon_timelinepath'])] for key, value in x.set_index('time').to_dict(orient='index').items()}
-# ).reset_index().rename(columns={0: 'path'})
-
-# visit_right = visit_right.rename(columns={'lat_visit': 'lat', 'lon_visit': 'lon'})
-
-# visit = pd.merge(visit, visit_right, how='left', on = ['start_time', 'end_time', 'hierarchy_level', 'lat', 'lon', 'probability', 'is_timeless_visit'])
-# visit = visit.drop(['key'], axis=1)
-
-# visit['duration'] = visit['end_time'] - visit['start_time']
-# visit['duration'] = visit['duration'].apply(lambda x: '{} hours {} minutes'.format(int(divmod(x, 60*60)[0]), int(divmod(divmod(x, 60*60)[1], 60)[0])))
-
-# visit.columns = ['start_time', 'end_time', 'hierarchy_level', 'lat', 'lon', 'probability', 'is_timeless_visit', 'path', 'duration']
-
-# visit = visit.reset_index(drop=True)
+export_activity(activity)
