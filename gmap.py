@@ -217,7 +217,7 @@ def export_timelinepath(timelinepath: pd.DataFrame) -> None:
     # Export timelinepath data to PostgreSQL table
     table = 'fact_timelinepath'
     print(f"Exporting data to table: {schema}.{table}")
-    pandas_to_warehouse(timelinepath, schema=schema, table=table, truncate=False)
+    pandas_to_warehouse(timelinepath, schema=schema, table=table, truncate=True)
     print("Export completed")
 
 export_timelinepath(timelinepath)  
