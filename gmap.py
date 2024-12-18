@@ -19,8 +19,8 @@ from scipy.spatial import cKDTree
 # Constants
 fk_date = datetime.now().strftime('%Y%m%d')
 schema = 'gmap'
-from_date = 20241101
-to_date = 20241101
+from_date = 20241107
+to_date = 20241107
 
 # Convert dates to UNIX timestamps
 from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) + 25200 # Add 7 hours
@@ -217,7 +217,7 @@ def export_timelinepath(timelinepath: pd.DataFrame) -> None:
     # Export timelinepath data to PostgreSQL table
     table = 'fact_timelinepath'
     print(f"Exporting data to table: {schema}.{table}")
-    pandas_to_warehouse(timelinepath, schema=schema, table=table, truncate=True)
+    pandas_to_warehouse(timelinepath, schema=schema, table=table, truncate=False)
     print("Export completed")
 
 export_timelinepath(timelinepath)  
@@ -260,7 +260,7 @@ def export_visit(visit: pd.DataFrame) -> None:
     # Select the columns to export
     visit = visit[['start_time', 'end_time', 'location_id', 'lat', 'lon', 'probability', 'is_timeless_visit']]
     # Export the visit data to the PostgreSQL table
-    pandas_to_warehouse(visit, schema=schema, table=table, truncate=True)
+    pandas_to_warehouse(visit, schema=schema, table=table, truncate=False)
     print("Export completed")
 
 export_visit(visit)
@@ -320,7 +320,7 @@ def export_activity(activity: pd.DataFrame) -> None:
     activity = activity[['start_time', 'end_time', 'start_location_id', 'start_lat', 'start_lon', 'end_location_id', 'end_lat', 'end_lon', 'vehicle_type', 'probability', 'distance_meters']]
     
     # Export the activity data to the PostgreSQL table
-    pandas_to_warehouse(activity, schema=schema, table=table, truncate=True)
+    pandas_to_warehouse(activity, schema=schema, table=table, truncate=False)
     print("Export completed")
 
 export_activity(activity)
