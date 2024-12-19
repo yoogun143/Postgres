@@ -8,10 +8,9 @@ warnings.simplefilter(action='ignore', category=(SettingWithCopyWarning))
 
 if __name__ == '__main__':
     # Constants
-    fk_date = datetime.now().strftime('%Y%m%d')
     schema = 'gmap'
-    df_path='raw\location-history.json'
-    from_date = 20241112
+    df_path='raw\location-history-20241218.json'
+    from_date = 20241114
     to_date = from_date
 
     # Convert dates to UNIX timestamps
