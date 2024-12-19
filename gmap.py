@@ -16,44 +16,49 @@ import numpy as np
 import psycopg2
 from scipy.spatial import cKDTree
 
-# Constants
-fk_date = datetime.now().strftime('%Y%m%d')
-schema = 'gmap'
-from_date = 20241107
-to_date = 20241107
-
-# Convert dates to UNIX timestamps
-from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) + 25200 # Add 7 hours
-to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp()) + 25200 # Add 7 hours
-
-# Create tree from dim_location
-def build_tree():
+def export_dim_location():
     """
-    Loads location data from Excel, stores it in dim_location in PostgreSQL, and
-    builds a cKDTree from the coordinates.
+    Export dim_location data to PostgreSQL table gmap.dim_location.
+
+    Parameters
+    ----------
+    dim_location : pd.DataFrame
+        The dim_location data to export.
 
     Returns
     -------
-    tree : cKDTree
-        A cKDTree object from the coordinates of the stored location data.
-    stored_location : pd.DataFrame
-        The stored location data, with columns 'lat' and 'lon' converted to numeric values.
-
-    Notes
-    -----
-    This function is used to build the cKDTree from the stored location data.
-    The cKDTree is used to quickly find the nearest location to a given coordinate.
+    None
     """
-    print(f'Starting to build tree at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+    print(f'Starting to export dim_location at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
 
     # Load data from Excel
     df = excel_to_pandas('raw/dim_location.xlsx')
 
     # Store data in dim_location in PostgreSQL
+    schema = 'gmap'
     table = 'dim_location'
     pandas_to_warehouse(df, schema=schema, table=table)
 
     print(f'Finished loading data from Excel at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+
+# Create tree from dim_location
+def build_tree():
+    """
+    Build a cKDTree from the dim_location table in PostgreSQL.
+
+    This function fetches the dim_location data from PostgreSQL, processes the coordinates, and builds a cKDTree.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    tuple
+        A tuple containing the cKDTree and the dim_location DataFrame with processed coordinates.
+    """
+
+    print(f'Starting to build tree at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
 
     # Fetch stored location data
     config = load_config()
@@ -77,8 +82,6 @@ def build_tree():
     print(f'Finished building cKDTree at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
 
     return tree, stored_location
-
-tree, stored_location = build_tree()
 
 def pre_process_json(df_path='raw\location-history.json'):
     """
@@ -187,9 +190,7 @@ def pre_process_json(df_path='raw\location-history.json'):
     print("Pre-processing completed")
     return visit, activity, timelinepath
 
-visit, activity, timelinepath = pre_process_json()
-
-def export_timelinepath(timelinepath: pd.DataFrame) -> None:
+def export_timelinepath(timelinepath: pd.DataFrame, schema: str, from_date_unix: int, to_date_unix: int) -> None:
     """
     Export timelinepath data to PostgreSQL table gmap.fact_timelinepath.
     
@@ -220,9 +221,7 @@ def export_timelinepath(timelinepath: pd.DataFrame) -> None:
     pandas_to_warehouse(timelinepath, schema=schema, table=table, truncate=False)
     print("Export completed")
 
-export_timelinepath(timelinepath)  
-
-def export_visit(visit: pd.DataFrame) -> None:
+def export_visit(visit: pd.DataFrame, schema: str, from_date_unix: int, to_date_unix: int) -> None:
     """
     Export visit data to the PostgreSQL table gmap.fact_visit.
 
@@ -239,6 +238,9 @@ def export_visit(visit: pd.DataFrame) -> None:
     print("Starting export_visit")
     table = 'fact_visit'
     print(f"Exporting data to table: {schema}.{table}")
+    
+    tree, stored_location = build_tree()
+
     # Filter visit data by start_time
     visit = visit[visit['start_time'].between(from_date_unix, to_date_unix)]
     print(f"Number of records after filtering: {len(visit)}")
@@ -263,9 +265,7 @@ def export_visit(visit: pd.DataFrame) -> None:
     pandas_to_warehouse(visit, schema=schema, table=table, truncate=False)
     print("Export completed")
 
-export_visit(visit)
-
-def export_activity(activity: pd.DataFrame) -> None:
+def export_activity(activity: pd.DataFrame, schema: str, from_date_unix: int, to_date_unix: int) -> None:
     """
     Export activity data to the PostgreSQL table gmap.fact_activity.
 
@@ -287,6 +287,8 @@ def export_activity(activity: pd.DataFrame) -> None:
     print("Starting export_activity")
     table = 'fact_activity'
     print(f"Exporting data to table: {schema}.{table}")
+
+    tree, stored_location = build_tree()
     
     # Filter activity data by start_time
     activity = activity[activity['start_time'].between(from_date_unix, to_date_unix)]
@@ -322,5 +324,3 @@ def export_activity(activity: pd.DataFrame) -> None:
     # Export the activity data to the PostgreSQL table
     pandas_to_warehouse(activity, schema=schema, table=table, truncate=False)
     print("Export completed")
-
-export_activity(activity)

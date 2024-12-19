@@ -1,0 +1,26 @@
+from gmap import export_dim_location, export_visit, export_activity, export_timelinepath, pre_process_json
+from datetime import datetime
+
+import warnings
+import pandas as pd
+from pandas.errors import SettingWithCopyWarning
+warnings.simplefilter(action='ignore', category=(SettingWithCopyWarning))
+
+if __name__ == '__main__':
+    # Constants
+    fk_date = datetime.now().strftime('%Y%m%d')
+    schema = 'gmap'
+    df_path='raw\location-history.json'
+    from_date = 20241112
+    to_date = from_date
+
+    # Convert dates to UNIX timestamps
+    from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) + 25200 # Add 7 hours
+    to_date_unix = int(datetime.strptime(str(to_date) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp()) + 25200 # Add 7 hours
+
+    # Run functions
+    # export_dim_location()
+    visit, activity, timelinepath = pre_process_json(df_path)
+    export_timelinepath(timelinepath, schema=schema, from_date_unix=from_date_unix, to_date_unix=to_date_unix)
+    export_visit(visit, schema=schema, from_date_unix=from_date_unix, to_date_unix=to_date_unix)
+    export_activity(activity, schema=schema, from_date_unix=from_date_unix, to_date_unix=to_date_unix)
