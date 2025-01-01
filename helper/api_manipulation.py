@@ -165,7 +165,7 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
                   from_date: str = None, to_date: str = None, 
                   from_effective_date: str = None, to_effective_date: str = None,
                   from_fiscal_date: str = None, to_fiscal_date: str = None,
-                  baseURL: str = 'https://finfo-api.vndirect.com.vn',
+                  baseURL: str = 'https://api-finfo.vndirect.com.vn',
                   list_user_agent: str = 'helper/list_user_agent.txt',
                   ) -> Dict:
     """
@@ -183,7 +183,7 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
     - from_effective_date (str, optional): The start effective date for filtering stock prices. Defaults to None.
     - to_date (str, optional): The end effective date for filtering stock prices. Defaults to None.
     - to_fiscal_date (str, optional): The end effective date for filtering stock fiscal event. Defaults to None.
-    - baseURL (str, optional): The base URL of the API. Defaults to 'https://finfo-api.vndirect.com.vn'.
+    - baseURL (str, optional): The base URL of the API. Defaults to 'https://api-finfo.vndirect.com.vn'.
     - list_user_agent (str, optional): The file containing the list of user agents. Defaults to 'helper/list_user_agent.txt'.
     - filename (str, optional): The name of the configuration file containing headers. Defaults to 'helper/headers.ini'.
     - section (str, optional): The section in the configuration file containing headers. Defaults to 'vnd_headers'.

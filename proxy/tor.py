@@ -20,7 +20,7 @@ def get_ip():
     return response.json()
 
 # URL to scrape
-url = 'https://finfo-api.vndirect.com.vn/v4/stock_prices'
+url = 'https://api-finfo.vndirect.com.vn/v4/stock_prices'
 # url = 'http://example.com'
 
 for _ in range(5):  # Adjust the number of requests as needed
