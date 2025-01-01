@@ -12,7 +12,7 @@ lock = threading.Lock()
 with open('helper\list_user_agent.txt', 'r') as f:
     user_agents = f.read().split('\n')
 
-def fetch_url_with_proxy(proxy_queue, output_file, url='https://finfo-api.vndirect.com.vn/v4/stock_prices'):
+def fetch_url_with_proxy(proxy_queue, output_file, url='https://api-finfo.vndirect.com.vn/v4/stock_prices'):
     """
 
     Fetches the given URL with the given proxy queue and writes the good proxies to the given output_file.
@@ -20,7 +20,7 @@ def fetch_url_with_proxy(proxy_queue, output_file, url='https://finfo-api.vndire
     Args:
         proxy_queue (queue.Queue): Queue of proxies to try.
         output_file (str): File to output good proxies to.
-        url (str, optional): URL to fetch. Defaults to 'https://finfo-api.vndirect.com.vn/v4/stock_prices'.
+        url (str, optional): URL to fetch. Defaults to 'https://api-finfo.vndirect.com.vn/v4/stock_prices'.
     """
     while not proxy_queue.empty():
         proxy = proxy_queue.get()
