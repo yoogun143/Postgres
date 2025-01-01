@@ -1,5 +1,6 @@
 from typing import Union, List, Tuple
 import re
+import math
 
 def sql_to_list(sql_path: str) -> list:
     """
@@ -68,3 +69,30 @@ def comma_separated_to_list(string: str) -> list:
     list: A list of strings with no blank elements.
     """
     return [item.strip() for item in string.split(',') if item.strip()]
+
+def haversine(lat1, lon1, lat2, lon2):
+    """
+    Calculate the distance between two points on the surface of the Earth.
+
+    Parameters
+    ----------
+    lat1 : float
+        Latitude of the first point in degrees.
+    lon1 : float
+        Longitude of the first point in degrees.
+    lat2 : float
+        Latitude of the second point in degrees.
+    lon2 : float
+        Longitude of the second point in degrees.
+
+    Returns
+    -------
+    distance : float
+        The distance between the two points in kilometers.
+    """
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    return c * 6371.0  # Earth's radius in kilometers
