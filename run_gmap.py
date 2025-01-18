@@ -9,8 +9,8 @@ warnings.simplefilter(action='ignore', category=(SettingWithCopyWarning))
 if __name__ == '__main__':
     # Constants
     schema = 'gmap'
-    df_path='raw\location-history-20241218.json'
-    from_date = 20241202
+    df_path = 'raw/location-history-20250116.json'
+    from_date = 20250116
     to_date = from_date
 
     # Convert dates to UNIX timestamps
@@ -21,5 +21,5 @@ if __name__ == '__main__':
     # export_dim_location()
     visit, activity, timelinepath = pre_process_json(df_path)
     export_timelinepath(timelinepath, schema=schema, from_date_unix=from_date_unix, to_date_unix=to_date_unix)
-    # export_visit(visit, schema=schema, from_date_unix=from_date_unix, to_date_unix=to_date_unix)
-    # export_activity(activity, schema=schema, from_date_unix=from_date_unix, to_date_unix=to_date_unix)
+    export_visit(visit, schema=schema, from_date_unix=from_date_unix, to_date_unix=to_date_unix)
+    export_activity(activity, schema=schema, from_date_unix=from_date_unix, to_date_unix=to_date_unix)
