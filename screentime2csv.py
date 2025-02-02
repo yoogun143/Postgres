@@ -26,7 +26,7 @@ def query_database(last_created_at):
         query = """
         SELECT
             ZOBJECT.ZVALUESTRING AS "app",
-            (ZOBJECT.ZENDDATE - ZOBJECT.ZSTARTDATE) AS "usage",
+            (ZOBJECT.ZENDDATE - ZOBJECT.ZSTARTDATE) AS "usage_time",
             (ZOBJECT.ZSTARTDATE + 978307200) as "start_time",
             (ZOBJECT.ZENDDATE + 978307200) as "end_time",
             (ZOBJECT.ZCREATIONDATE + 978307200) as "created_at",
