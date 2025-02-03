@@ -161,43 +161,6 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_
     df.to_csv(data_path,index=False)
     print(f'Exported {len(df)} rows to {data_path}')
 
-def sqlite_to_csv(schema: str, table: str, fk_date: str) -> None:
-    data_path = f"raw/{schema}_{table}_{fk_date}.csv"
-    knowledge_db = os.path.expanduser("~/Library/Application Support/Knowledge/knowledgeC.db")
-
-    query = """
-    SELECT
-        ZOBJECT.ZVALUESTRING AS "app",
-        (ZOBJECT.ZENDDATE - ZOBJECT.ZSTARTDATE) AS "usage_time",
-        (ZOBJECT.ZSTARTDATE + 978307200) as "start_time",
-        (ZOBJECT.ZENDDATE + 978307200) as "end_time",
-        (ZOBJECT.ZCREATIONDATE + 978307200) as "created_at",
-        ZOBJECT.ZSECONDSFROMGMT AS "tz",
-        ZSOURCE.ZDEVICEID AS "device_id",
-        ZMODEL AS "device_model"
-    FROM
-        ZOBJECT
-        LEFT JOIN
-        ZSTRUCTUREDMETADATA
-        ON ZOBJECT.ZSTRUCTUREDMETADATA = ZSTRUCTUREDMETADATA.Z_PK
-        LEFT JOIN
-        ZSOURCE
-        ON ZOBJECT.ZSOURCE = ZSOURCE.Z_PK
-        LEFT JOIN
-        ZSYNCPEER
-        ON ZSOURCE.ZDEVICEID = ZSYNCPEER.ZDEVICEID
-    WHERE
-        ZSTREAMNAME = "/app/usage" AND
-        (ZOBJECT.ZCREATIONDATE + 978307200) > 0
-    ORDER BY
-        ZCREATIONDATE DESC
-    """
-
-    df = pd.read_sql_query(query, sqlite3.connect(knowledge_db))
-    df['fk_date'] = fk_date
-    df.to_csv(data_path,index=False)
-    print(f'Exported {len(df)} rows to {data_path}')
-
 def csv_to_staging(schema: str, table: str, fk_date: str) -> None:
     """
     Reads a CSV file and inserts its contents into a staging table in a PostgreSQL database.
