@@ -48,7 +48,7 @@ def get_column_name_from_create_table(sql_statement: str) -> list:
         list: A list of column names extracted from the SQL statement.
     """
     # Define a regular expression pattern to match column names followed by their data types
-    pattern = r'\b(\w+)\s+\b(?:VARCHAR|varchar|INT|int|TEXT|text|DATE|date|NUMERIC|numeric|DECIMAL|decimal)\b'
+    pattern = r'\b(\w+)\s+\b(?:VARCHAR|varchar|INT|int|bigint|BIGINT|TEXT|text|DATE|date|NUMERIC|numeric|DECIMAL|decimal)\b'
 
     # Use re.findall to find all matches of the pattern in the sql_statement
     matches = re.findall(pattern, sql_statement)
