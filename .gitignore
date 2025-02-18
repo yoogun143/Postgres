@@ -8,6 +8,7 @@ proxy_list_filter.txt
 list_user_agent.txt
 calc_price_pkg.sql
 test_raw.ipynb
+.env
 
 # Folder 
 __pycache__/
