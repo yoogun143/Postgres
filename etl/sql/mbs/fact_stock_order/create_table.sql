@@ -11,5 +11,5 @@ CREATE TABLE IF NOT EXISTS %(schema)s.%(table)s
     ,channel           VARCHAR(50)
     ,match_quantity    INT
     ,match_price       DECIMAL(18,2)
-    ,match_time        TIMESTAMP
+    ,match_time        VARCHAR(50)
   ); 

@@ -3,7 +3,7 @@ import pandas as pd
 from load_warehouse import pandas_to_warehouse
 
 # Load the Excel file
-file_path = r"D:\OneDrive - Northeastern University\MBS\Data\order history.xlsx"
+file_path = "/Users/thanhhoang/Library/CloudStorage/OneDrive-NortheasternUniversity/MBS/Data/order history.xlsx"
 df = pd.read_excel(file_path, sheet_name="Sheet1")
 
 # Rename columns
@@ -121,7 +121,7 @@ def get_category(description):
     else:
         return None
 
-cash_statement_folder_path = r"D:\OneDrive - Northeastern University\MBS\Data\sao_ke_tien"
+cash_statement_folder_path = "/Users/thanhhoang/Library/CloudStorage/OneDrive-NortheasternUniversity/MBS/Data/sao_ke_tien"
 fact_cash_statement_list = []
 
 for file_name in os.listdir(cash_statement_folder_path):
@@ -141,6 +141,7 @@ for file_name in os.listdir(cash_statement_folder_path):
 
         # Filter and transform
         df = df[df['Account'].notnull()]
+        df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
         df['Account'] = df['Account'].apply(lambda x: str(x).zfill(7))
         df['Account'] = df['Account'].str.replace('\'','')
         df['Txtype'] = df.apply(lambda row: 'Debit' if row['Credit'] == 0 else 'Credit', axis=1)
@@ -159,8 +160,12 @@ for file_name in os.listdir(cash_statement_folder_path):
 fact_cash_statement = pd.concat(fact_cash_statement_list, ignore_index=True)
 fact_cash_statement
 
+schema = 'mbs'
+table = 'fact_cash_statement'
+pandas_to_warehouse(fact_cash_statement, schema=schema, table=table)
+
 ######################################################################################################################
-stock_statement_folder_path = r"D:\OneDrive - Northeastern University\MBS\Data\sao_ke_chung_khoan"
+stock_statement_folder_path = "/Users/thanhhoang/Library/CloudStorage/OneDrive-NortheasternUniversity/MBS/Data/sao_ke_chung_khoan"
 fact_stock_statement_list = []
 
 for file_name in os.listdir(stock_statement_folder_path):
@@ -181,6 +186,7 @@ for file_name in os.listdir(stock_statement_folder_path):
 
         # Filter and transform
         df = df[df['Account'].notnull()]
+        df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
         df['Account'] = df['Account'].apply(lambda x: str(x).zfill(7))
         df['Account'] = df['Account'].str.replace('\'','')
 
@@ -188,3 +194,7 @@ for file_name in os.listdir(stock_statement_folder_path):
 
 fact_stock_statement = pd.concat(fact_stock_statement_list, ignore_index=True)
 fact_stock_statement
+
+schema = 'mbs'
+table = 'fact_stock_statement'
+pandas_to_warehouse(fact_stock_statement, schema=schema, table=table)
