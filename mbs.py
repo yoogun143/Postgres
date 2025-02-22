@@ -27,6 +27,7 @@ code_challenge = generate_code_challenge(code_verifier)
 mbs_config = load_config(filename='helper/database.ini', section='mbs')
 username = mbs_config['username']
 password = mbs_config['password']
+account = mbs_config['account']
 
 # Device and verification parameters
 device_id = "183.46.35.23"
@@ -35,10 +36,10 @@ device_id = "183.46.35.23"
 login_url = "https://accts.mbs.com.vn/webuaa/login"
 
 # Order API endpoint
-order_url = "https://fot-api-web.mbs.com.vn/v1/accounts/orders/038503"
+order_url = f"https://fot-api-web.mbs.com.vn/v1/accounts/orders/{account}"
 
 # Deal API endpoint
-deal_url = "https://fot-api-web.mbs.com.vn/v1/accounts/orders/deals/038503"
+deal_url = f"https://fot-api-web.mbs.com.vn/v1/accounts/orders/deals/{account}"
 
 # Step 1: Get Bearer Token
 def get_bearer_token():
