@@ -2,6 +2,122 @@ import os
 import pandas as pd
 from load_warehouse import pandas_to_warehouse
 
+from helper.config import load_config
+
+import requests
+
+import base64
+import hashlib
+
+# Generate a random code_verifier (43-128 characters long)
+def generate_code_verifier(length=64):
+    verifier = base64.urlsafe_b64encode(os.urandom(length)).decode('utf-8').rstrip("=")
+    return verifier
+
+# Generate code_challenge from the code_verifier (SHA-256 hash)
+def generate_code_challenge(code_verifier):
+    challenge = hashlib.sha256(code_verifier.encode('utf-8')).digest()
+    return base64.urlsafe_b64encode(challenge).decode('utf-8').rstrip("=")
+
+# Generate both
+code_verifier = generate_code_verifier()
+code_challenge = generate_code_challenge(code_verifier)
+
+# User credentials
+mbs_config = load_config(filename='helper/database.ini', section='mbs')
+username = mbs_config['username']
+password = mbs_config['password']
+
+# Device and verification parameters
+device_id = "183.46.35.23"
+
+# Login endpoint
+login_url = "https://accts.mbs.com.vn/webuaa/login"
+
+# Order API endpoint
+order_url = "https://fot-api-web.mbs.com.vn/v1/accounts/orders/038503"
+
+# Deal API endpoint
+deal_url = "https://fot-api-web.mbs.com.vn/v1/accounts/orders/deals/038503"
+
+# Step 1: Get Bearer Token
+def get_bearer_token():
+    # Headers for login
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    }
+
+    # Login payload
+    payload = {
+        "username": username,
+        "password": password,
+        "device_id": device_id,
+        "code_challenge": code_challenge,
+        "verifier": code_verifier
+    }
+
+    # Send login request
+    response = requests.post(login_url, headers=headers, data=payload)
+
+    # Check if login is successful
+    if response.status_code == 200:
+        token = response.json().get("access_token")
+        if token:
+            print("✅ Bearer token obtained successfully!")
+            return token
+        else:
+            print("❌ Token not found in the response.")
+    else:
+        print(f"❌ Failed to log in. Status code: {response.status_code}, Response: {response.text}")
+    return None
+
+from_date = "20250123"
+to_date = "20250222"
+
+# Step 2: Fetch order data using the token
+def fetch_order_deal(token, order_or_deal="order"):
+    # Headers for order API
+    headers = {
+        'Content-Type': 'application/json',
+        "authorization": f"Bearer {token}",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    }
+
+    # Query parameters for order API
+    params = {
+        "fromDate": from_date,
+        "toDate": to_date,
+        "page": 1,
+        "pageSize": 100,
+    }
+
+    # Send request to get order data
+    if order_or_deal == "order":
+        response = requests.get(order_url, headers=headers, params=params)
+    elif order_or_deal == "deal":
+        response = requests.get(deal_url, headers=headers, params=params)
+
+    # Check response
+    if response.status_code == 200:
+        print(f"✅ {order_or_deal} data retrieved successfully!")
+        return response.json()  # Display the JSON response
+    else:
+        print(f"❌ Failed to fetch orders. Status code: {response.status_code}, Response: {response.text}")
+
+# Main flow
+token = get_bearer_token()
+if token:
+    order = fetch_order_deal(token, order_or_deal="order")
+    deal = fetch_order_deal(token, order_or_deal="deal")
+
+
+pd.DataFrame(order['items']).iloc[0]
+
+pd.DataFrame(deal['items']).iloc[0]
+
+
+######################################################################################################################
 # Load the Excel file
 file_path = "/Users/thanhhoang/Library/CloudStorage/OneDrive-NortheasternUniversity/MBS/Data/order history.xlsx"
 df = pd.read_excel(file_path, sheet_name="Sheet1")
