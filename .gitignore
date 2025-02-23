@@ -3,6 +3,7 @@ database.ini
 design.xlsx
 ~$design.xlsx
 trash.txt
+trash.py
 proxy_list_raw.txt
 proxy_list_filter.txt
 list_user_agent.txt

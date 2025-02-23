@@ -287,11 +287,11 @@ def load_arguments_dict(table):
 
     return arguments_dict
 
-if __name__ == '__main__':
-    table = 'factless_financial_statements'
-    arguments_dict = load_arguments_dict(table=table)
-    baseURL,endpoint,params_dict,headers=arguments_dict.values()
-    use_proxy=True
-    proxy_list_filter='proxy\proxy_list_filter.txt'
-    timeout=1
-    api_to_pandas(**arguments_dict,use_proxy=True,rerun_proxy=True,timeout=1)
+# if __name__ == '__main__':
+#     table = 'factless_financial_statements'
+#     arguments_dict = load_arguments_dict(table=table)
+#     baseURL,endpoint,params_dict,headers=arguments_dict.values()
+#     use_proxy=True
+#     proxy_list_filter='proxy\proxy_list_filter.txt'
+#     timeout=1
+#     api_to_pandas(**arguments_dict,use_proxy=True,rerun_proxy=True,timeout=1)

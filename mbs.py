@@ -6,9 +6,6 @@ import requests
 import base64
 import hashlib
 
-from_date = "20250123"
-to_date = "20250222"
-
 # Generate a random code_verifier (43-128 characters long)
 def generate_code_verifier(length=64):
     verifier = base64.urlsafe_b64encode(os.urandom(length)).decode('utf-8').rstrip("=")
@@ -74,7 +71,7 @@ def get_bearer_token():
     return None
 
 # Step 2: Fetch order data using the token
-def fetch_order_deal(token, order_or_deal="order"):
+def fetch_order_deal(token,from_date,to_date,order_or_deal="order"):
     # Headers for order API
     headers = {
         'Content-Type': 'application/json',
@@ -103,18 +100,33 @@ def fetch_order_deal(token, order_or_deal="order"):
     else:
         print(f"❌ Failed to fetch orders. Status code: {response.status_code}, Response: {response.text}")
 
+from_date = "20211101"
+to_date = "20211130"
+
 # Main flow
 token = get_bearer_token()
 if token:
-    order = fetch_order_deal(token, order_or_deal="order")
-    deal = fetch_order_deal(token, order_or_deal="deal")
+    order = pd.DataFrame(fetch_order_deal(token, from_date=from_date, to_date=to_date, order_or_deal="order")['items'])
+    deal = pd.DataFrame(fetch_order_deal(token, from_date=from_date, to_date=to_date, order_or_deal="deal")['items'])
 
+order = order.drop(columns=['rowNo'])
+deal = deal.drop(columns=['rowNo'])
 
-pd.DataFrame(order['items'])
+order['orderNo'] = order['orderNo'].astype(str)
+deal['orderNo'] = deal['orderNo'].astype(str)
 
-pd.DataFrame(deal['items']).iloc[0]
+order_merged = pd.merge(order, deal, how='left', on='orderNo')
+order_merged['orderDate'] = pd.to_datetime(order_merged['orderDate'],dayfirst=True).dt.date
+order_merged['dueDate'] = pd.to_datetime(order_merged['dueDate'],dayfirst=True).dt.date
 
-order['items']
+columns_order = ['side', 'account', 'symbol', 'price', 'quantity', 'orderStatus', 'createdDate', 'orderNo', 'exchangeID', 'matchedValue', 'channel', 'fillQuantity', 'avgPrice', 'orderPrice', 'fillValue', 'accountCode', 'shareCode', 'orderTime', 'orderDate', 'dueDate', 'matchedPrice', 'matchedVolume']
+order_merged = order_merged[columns_order]
+order_merged.columns = ['side','account','symbol','price','quantity','order_status','created_date','order_no','exchange','matched_value','channel','fill_quantity','avg_price','order_price','fill_value','account_code','share_code','order_time','order_date','due_date','matched_price','matched_volume']
+
+# Store data in dim_location in PostgreSQL
+schema = 'mbs'
+table = 'fact_stock_order_v2'
+pandas_to_warehouse(order_merged, schema=schema, table=table, truncate=False)
 
 ######################################################################################################################
 # Load the Excel file
@@ -191,50 +203,70 @@ def transform_excel_statemment(file_path):
     return df
 
 def get_category(description):
-    if 'Chuyển tiền mua' in description:
-        return 'Stock Buy'
-    elif 'Nhận tiền bán' in description:
-        return 'Stock Sale'
-    elif any(substring in description for substring in ['Phí bán', 'Phí dịch vụ bán']):
-        return 'Sale Fee'
-    elif any(substring in description for substring in ['Phí mua', 'Phí dịch vụ mua']):
-        return 'Buy Fee'
-    elif 'Phí GD (bao gồm Phí trả Sở)' in description:
-        return 'Depository Trading Fee'
-    elif 'MBS thu phí/nợ phí lưu ký chứng khoán' in description:
-        return 'Depository Fee'
-    elif 'Thu phí chuyển khoản bán CK theo quy định của TTLK' in description:
-        return 'Depository Transfer Fee'
-    elif 'Tạm thu thuế bán' in description:
-        return 'Income Tax'
-    elif any(substring in description for substring in ['Thuế TNCN 5% mã', 'Thu thuế cổ tức']):
-        return 'Dividend Tax'
-    elif 'MBS trả lãi tiền gửi' in description:
-        return 'Demand Deposit Interest'
-    elif 'Thu phi sao chep' in description:
-        return 'Copy Fee'
-    elif 'Giải ngân mua chứng khoán dịch vụ' in description:
-        return 'Margin Release'
-    elif 'Thu nợ gốc trong hạn' in description:
-        return 'Margin Recover'
-    elif any(substring in description for substring in ['Thu phí trong hạn MBLink', 'Thu phí trong hạn Mcredit']):
-        return 'Margin Fee'
-    elif 'Thu phí dịch vụ sức mua ứng trước' in description:
-        return 'Cash Advanced Fee'
-    elif any(substring in description for substring in ['Chuyen tien noi bo khi thuc hien copi24', 'Nop tien sao chep dich vu Copi24', 'Rut tien sao chep dich vu Copi24']):
-        return 'Internal Transfer'
-    elif description in ['back', 'c', 'chuyen', 'd', 'g']:
-        return 'Internal Transfer'
-    elif 'HOANG LE THANH CHUYEN TIEN TRACE' in description:
-        return 'External Transfer'
-    elif description in ['SOPHU REALTIME - NOP TIEN 005C038503 HOANG LE THANH', 'chuyen tien(29/12/2022 10:10:10)']:
-        return 'External Transfer'
-    elif any(substring in description for substring in ['Chi trả cổ tức', 'Tạm ứng cổ tức', 'Trả cổ tức']):
-        return 'Cash Dividend'
-    elif 'hoa hong gioi thieu cho KH theo CT' in description:
-        return 'Referral Commission'
+    if "Chuyển tiền mua" in description:
+        return "Stock Buy"
+    elif "Nhận tiền bán" in description:
+        return "Stock Sale"
+    elif any(substring in description for substring in [
+        "Phí bán", "Phí dịch vụ bán"
+    ]):
+        return "Sale Fee" 
+    elif any(substring in description for substring in [
+        "Phí mua", "Phí dịch vụ mua"
+    ]):
+        return "Buy Fee" 
+    elif "Phí GD (bao gồm Phí trả Sở)" in description:
+        return "Depository Trading Fee"
+    elif "MBS thu phí/nợ phí lưu ký chứng khoán" in description:
+        return "Depository Fee"
+    elif "Thu phí chuyển khoản bán CK theo quy định của TTLK" in description:
+        return "Depository Transfer Fee"
+    elif "Tạm thu thuế bán" in description:
+        return "Income Tax"
+    elif any(substring in description for substring in [
+        "Thuế TNCN 5% mã", 
+        "Thu thuế cổ tức"
+    ]):
+        return "Dividend Tax"
+    elif "MBS trả lãi tiền gửi" in description:
+        return "Demand Deposit Interest"
+    elif "Thu phi sao chep" in description:
+        return "Copy Fee"
+    elif "Giải ngân mua chứng khoán dịch vụ" in description:
+        return "Margin Release"
+    elif "Thu nợ gốc trong hạn" in description:
+        return "Margin Recover"
+    elif any(substring in description for substring in [
+        "Thu phí trong hạn MBLink", "Thu phí trong hạn Mcredit"
+    ]):
+        return "Margin Fee"
+    elif "Thu phí dịch vụ sức mua ứng trước" in description:
+        return "Cash Advanced Fee"
+    elif any(substring in description for substring in [
+        "Chuyen tien noi bo khi thuc hien copi24", 
+        "Nop tien sao chep dich vu Copi24", 
+        "Rut tien sao chep dich vu Copi24"
+    ]):
+        return "Internal Transfer"
+    elif description in ["back", "c", "chuyen", "d", "g"]:
+        return "Internal Transfer"
+    elif "HOANG LE THANH CHUYEN TIEN TRACE" in description:
+        return "External Transfer"
+    elif description in [
+        "SOPHU REALTIME - NOP TIEN 005C038503 HOANG LE THANH", 
+        "chuyen tien(29/12/2022 10:10:10)"
+    ]:
+        return "External Transfer"
+    elif any(substring in description for substring in [
+        "Chi trả cổ tức", 
+        "Tạm ứng cổ tức", 
+        "Trả cổ tức"
+    ]):
+        return "Cash Dividend"
+    elif "hoa hong gioi thieu cho KH theo CT" in description:
+        return "Referral Commission"
     else:
-        return None
+        return None 
 
 cash_statement_folder_path = "/Users/thanhhoang/Library/CloudStorage/OneDrive-NortheasternUniversity/MBS/Data/sao_ke_tien"
 fact_cash_statement_list = []
