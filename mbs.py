@@ -1,13 +1,13 @@
 import os
 import pandas as pd
 from load_warehouse import pandas_to_warehouse
-
 from helper.config import load_config
-
 import requests
-
 import base64
 import hashlib
+
+from_date = "20250123"
+to_date = "20250222"
 
 # Generate a random code_verifier (43-128 characters long)
 def generate_code_verifier(length=64):
@@ -73,9 +73,6 @@ def get_bearer_token():
         print(f"❌ Failed to log in. Status code: {response.status_code}, Response: {response.text}")
     return None
 
-from_date = "20250123"
-to_date = "20250222"
-
 # Step 2: Fetch order data using the token
 def fetch_order_deal(token, order_or_deal="order"):
     # Headers for order API
@@ -113,10 +110,11 @@ if token:
     deal = fetch_order_deal(token, order_or_deal="deal")
 
 
-pd.DataFrame(order['items']).iloc[0]
+pd.DataFrame(order['items'])
 
 pd.DataFrame(deal['items']).iloc[0]
 
+order['items']
 
 ######################################################################################################################
 # Load the Excel file
