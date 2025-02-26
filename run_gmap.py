@@ -1,4 +1,4 @@
-from gmap import export_dim_location, export_visit, export_activity, export_timelinepath, pre_process_json
+from gmap import export_visit, export_activity, export_timelinepath, pre_process_json
 from datetime import datetime
 
 import warnings
