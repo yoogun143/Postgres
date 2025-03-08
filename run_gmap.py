@@ -1,4 +1,4 @@
-from gmap import export_visit, export_activity, export_timelinepath, pre_process_json
+from gmap import export_visit, export_activity, export_timelinepath, pre_process_json, export_dim_location
 from datetime import datetime
 
 import warnings
@@ -9,8 +9,8 @@ warnings.simplefilter(action='ignore', category=(SettingWithCopyWarning))
 if __name__ == '__main__':
     # Constants
     schema = 'gmap'
-    df_path = 'raw/location-history-20250203.json'
-    from_date = 20250203
+    df_path = 'raw/location-history-20250304.json'
+    from_date = 20250228
     to_date = from_date
 
     # Convert dates to UNIX timestamps
