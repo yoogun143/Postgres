@@ -9,28 +9,13 @@ from psycopg2 import sql
 
 import pandas as pd
 import os
-import sqlite3
 
 import xlwings as xw
 
 from helper.config import load_config
 from helper.string_manipulation import sql_to_list,get_column_name_from_create_table,comma_separated_to_list
-from helper.api_manipulation import api_to_pandas,gen_arguments
+from helper.api_manipulation import api_to_pandas
 
-# # test strng
-# from datetime import datetime
-# schema='vnd'
-# table='dim_symbol'
-# fk_date = datetime.now().strftime('%Y%m%d')
-# floor=['HOSE','HNX','UPCOM','OTC']
-# endpoint= '/v4/stocks'
-# arguments_dict=gen_arguments(endpoint=endpoint,floor=floor)
-
-# schema = 'vnd' 
-# table = 'dim_symbol'
-# fk_date = 20230701
-# config = load_config()
-# conn = psycopg2.connect(**config) 
 
 def update_scd_type_2(schema: str, table: str, fk_date: str) -> None:
     '''
@@ -337,9 +322,3 @@ def pandas_to_warehouse(df:pd.DataFrame, schema:str, table:str, truncate:bool=Tr
 
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)    
-
-if __name__ == '__main__':
-    arguments_dict=gen_arguments(symbol=['MWG','FPT','VNM','VND'],from_date='2024-06-01',to_date='2024-06-21')
-    api_to_csv(arguments_dict,'vnd','daily_acctno_cashflow',20240621)
-    csv_to_staging('vnd','daily_acctno_cashflow',20240621)
-    staging_to_warehouse('vnd','daily_acctno_cashflow',20240621)

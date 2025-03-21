@@ -1,0 +1,49 @@
+# For gte, lte, use 'function' instead of date string so it can be calculated from today
+
+dim_symbol:
+  baseURL: 'https://api-finfo.vndirect.com.vn'
+  endpoint: '/v4/stocks'
+  params_dict:
+    size: 99999
+    q:
+      floor: 'HOSE,HNX,UPCOM,OTC'
+
+fact_stock_price:
+  baseURL: 'https://api-finfo.vndirect.com.vn'
+  endpoint: '/v4/stock_prices'
+  params_dict:
+    sort: 'date'
+    size: 49999
+    q: 
+      floor: 'HOSE,HNX,UPCOM,OTC'
+      date: 
+        gte: 0
+        lte: 0
+
+factless_stock_events:
+  baseURL: 'https://api-finfo.vndirect.com.vn'
+  endpoint: '/v4/events'
+  params_dict:
+    sort: 'effectiveDate'
+    size: 9999
+    q: 
+      effectiveDate: 
+        gte: -365
+        lte: 365
+
+dim_financial_models:
+  baseURL: 'https://api-finfo.vndirect.com.vn'
+  endpoint: '/v4/financial_models'
+  params_dict:
+    size: 99999
+
+factless_financial_statements:
+  baseURL: 'https://api-finfo.vndirect.com.vn'
+  endpoint: '/v4/financial_statements'
+  params_dict:
+    sort: 'fiscalDate'
+    size: 99999
+    q:
+      fiscalDate:
+        gte: -180
+        lte: 0 

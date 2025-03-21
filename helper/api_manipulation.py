@@ -6,6 +6,7 @@ from datetime import datetime,timedelta
 import subprocess
 import json
 import random
+import yaml
 
 from typing import Dict,List
 
@@ -161,6 +162,8 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
 
     return df
 
+### DEPRECATED FUNCTION
+### Use gen_api_config instead
 def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = None, sort: str = None, size: int = 9999,
                   from_date: str = None, to_date: str = None, 
                   from_effective_date: str = None, to_effective_date: str = None,
@@ -248,6 +251,58 @@ def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = No
         'headers': headers,
     }
 
+def gen_api_config(file_path: str = 'helper/tables.yaml', list_user_agent: str = 'helper/list_user_agent.txt') -> Dict[str, dict]:
+    """
+    Reads a YAML file at the given file path and returns the processed configuration.
+
+    The configuration is processed by replacing 'function' with calculated dates and adding a 'headers' field that contains a randomly chosen user agent.
+
+    Parameters:
+    - file_path (str): Path to the YAML file to read.
+    - list_user_agent (str): Path to the file containing the list of user agents (default is 'helper/list_user_agent.txt').
+
+    Returns:
+    - A dictionary containing the processed configuration.
+    """
+    with open(file_path, 'r') as f:
+        config = yaml.safe_load(f)
+
+    # Process the config and replace 'function' with calculated dates
+    for key, value in config.items():
+        # Get the 'params_dict' from the configuration
+        params_dict = value.get('params_dict', {})
+
+        # Look for 'q' key (query parameters)
+        query_params = params_dict.get('q', {})
+
+        # Iterate through all keys to find 'date' or other date-related fields
+        for sub_key, sub_value in query_params.items():
+            if isinstance(sub_value, dict):  # Check for nested dictionaries like 'date' or 'effectiveDate'
+                for date_key, date_value in sub_value.items():
+                    if isinstance(date_value, int):
+                        if date_key == 'gte':
+                            # Replace 'gte' with the calculated date
+                            sub_value[date_key] = add_days_from_today(days=date_value)
+                        elif date_key == 'lte':
+                            # Replace 'lte' with the calculated date
+                            sub_value[date_key] = add_days_from_today(days=date_value)
+
+        # List user agents
+        with open(list_user_agent, 'r') as f:
+            user_agents = f.read().split('\n')
+
+        # Create a dictionary with a randomly chosen user agent
+        headers = {
+            'User-Agent': random.choice(user_agents),
+            'Content-Type': 'application/json',
+        }
+
+        # Add the 'headers' dictionary to the configuration
+        value['headers'] = headers
+
+    # Return the processed configuration
+    return config
+
 def add_days_from_today(date_format: str = '%Y-%m-%d', days: int = 0) -> str:
     """
     Return a formatted date string based on the current date and an optional number of days to add.
@@ -280,18 +335,9 @@ def load_arguments_dict(table):
 
     # Assign variables to globals
     for key,val in config.items():
-        print(f'exec(): {key} = {val}')
+        # print(f'exec(): {key} = {val}')
         exec(key + '=' + val, globals())
     
     arguments_dict = globals()['arguments_dict']
 
     return arguments_dict
-
-# if __name__ == '__main__':
-#     table = 'factless_financial_statements'
-#     arguments_dict = load_arguments_dict(table=table)
-#     baseURL,endpoint,params_dict,headers=arguments_dict.values()
-#     use_proxy=True
-#     proxy_list_filter='proxy\proxy_list_filter.txt'
-#     timeout=1
-#     api_to_pandas(**arguments_dict,use_proxy=True,rerun_proxy=True,timeout=1)

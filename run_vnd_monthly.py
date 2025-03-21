@@ -1,6 +1,6 @@
 from create_table import create_table
 from load_warehouse import api_to_csv,csv_to_staging,staging_to_warehouse
-from helper.api_manipulation import load_arguments_dict
+from helper.api_manipulation import gen_api_config
 from datetime import datetime
 
 if __name__ == '__main__':
@@ -13,7 +13,7 @@ if __name__ == '__main__':
         # 'fact_stock_price',
         'factless_stock_events',
         # 'dim_financial_models',
-        'factless_financial_statements'
+        # 'factless_financial_statements'
         ]
 
     for table in table_list:
@@ -22,7 +22,7 @@ if __name__ == '__main__':
         print('-'*40)
         print('-'*40)
 
-        arguments_dict = load_arguments_dict(table=table)
+        arguments_dict = gen_api_config()[table]
 
         create_table(schema=schema,table=table)
 
