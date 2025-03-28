@@ -78,6 +78,7 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
         if isinstance(value, dict):
             params_dict[key] = flatten_dict(value)
 
+    total_pages = None
     while True:
         params_dict['page'] = page_num
         if use_proxy:
@@ -92,7 +93,6 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
                 }
                 try:
                     response = requests.get(
-                        # f"{baseURL}{endpoint}?{params_dict_to_string(params_dict)}&page={page_num}", #Deprecated method use params_dict_to_string
                         f"{baseURL}{endpoint}",
                         params=params_dict,
                         headers=headers,
@@ -112,12 +112,10 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
 
             # Use a proxy for the request
             if proxy_index == len(proxies):
-                # print(f"All proxies failed for {baseURL}{endpoint}?{params_dict_to_string(params_dict)}&page={page_num}. Plase check the proxy list file at proxy/proxy_list_filter.txt and proxy/proxy_list_raw.txt.")
-                print(f"All proxies failed for {urllib.parse.unquote(response.url)}. Plase check the proxy list file at proxy/proxy_list_filter.txt and proxy/proxy_list_raw.txt.")
+                print(f"All proxies failed for {urllib.parse.unquote(response.url)}. Please check the proxy list file at proxy/proxy_list_filter.txt and proxy/proxy_list_raw.txt.")
                 break
             else:
                 response = requests.get(
-                    # f"{baseURL}{endpoint}?{params_dict_to_string(params_dict)}&page={page_num}", #Deprecated method params_dict_to_string
                     f"{baseURL}{endpoint}",
                     params=params_dict,
                     headers=headers,
@@ -128,7 +126,6 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
         else:
             # Make the request without a proxy
             response = requests.get(
-                # f"{baseURL}{endpoint}?{params_dict_to_string(params_dict)}&page={page_num}", #Deprecated method params_dict_to_string
                 f"{baseURL}{endpoint}",
                 params=params_dict,
                 headers=headers,
@@ -142,30 +139,33 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
 
         status_code = response.status_code
         url = urllib.parse.unquote(response.url)
-        response_data = response.json()['data']
-        if page_num == 1:
-            total_pages = response.json()['totalPages']
-
-        df_partition = pd.json_normalize(response_data)
-        if df_partition is None or len(df_partition) == 0:
-            print(f"API return no data on page {page_num} {urllib.parse.unquote(response.url)}")      
-            df = None
-            break # break if error
+        response_data = response.json().get('data', [])
+        total_pages_info = response.json().get('totalPages')
+        if total_pages_info:
+            print(f"Total pages: {total_pages_info}")
+        
+        if not response_data:
+            print(f"API returned no data on page {page_num} {urllib.parse.unquote(response.url)}")      
+            break # break if no data
             
+        df_partition = pd.json_normalize(response_data)
         df = pd.concat([df, df_partition])
 
         if use_proxy:
-            print(f"Getting page {page_num}/{total_pages}, status: {status_code}, url: {url}, proxy: {proxy}")
+            print(f"Getting page {page_num}, status: {status_code}, url: {url}, proxy: {proxy}")
         else:
-            print(f"Getting page {page_num}/{total_pages}, status: {status_code}, url: {url}")
+            print(f"Getting page {page_num}, status: {status_code}, url: {url}")
+
+        if total_pages is None:
+            total_pages = total_pages_info if total_pages_info else (page_num + 1 if len(response_data) > 0 else page_num)
 
         if page_num >= total_pages:
             break
 
         page_num += 1
 
-    if df is None or len(df) == 0:
-        raise ValueError(f"API return no data")           
+    if df.empty:
+        raise ValueError("API returned no data")           
 
     return df
 
