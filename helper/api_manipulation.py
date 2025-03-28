@@ -81,91 +81,70 @@ def api_to_pandas(baseURL: str, endpoint: str, params_dict: Dict, headers: Dict,
     total_pages = None
     while True:
         params_dict['page'] = page_num
-        if use_proxy:
-            proxy_index = 0
 
-            while proxy_index < len(proxies):
-
-                proxy = proxies[proxy_index]
-                proxies_dict = {
-                    "http": proxy,
-                    "https": proxy
-                }
-                try:
-                    response = requests.get(
-                        f"{baseURL}{endpoint}",
-                        params=params_dict,
-                        headers=headers,
-                        proxies=proxies_dict,
-                        timeout=timeout
-                    )
-                    try:
-                        response.json()
-                        break
-                    except json.JSONDecodeError:
-                        print(f"Error decode json from proxy {proxy}:{urllib.parse.unquote(response.url)}, trying next proxy") 
-                        proxy_index += 1
-
-                except requests.RequestException as e:
-                    print(f"Proxy {proxy} failed: {e}, trying next proxy")
-                    proxy_index += 1
-
-            # Use a proxy for the request
-            if proxy_index == len(proxies):
-                print(f"All proxies failed for {urllib.parse.unquote(response.url)}. Please check the proxy list file at proxy/proxy_list_filter.txt and proxy/proxy_list_raw.txt.")
-                break
-            else:
-                response = requests.get(
-                    f"{baseURL}{endpoint}",
-                    params=params_dict,
-                    headers=headers,
-                    proxies=proxies_dict,
-                    timeout=timeout
-                )                
-
-        else:
-            # Make the request without a proxy
+        try:
             response = requests.get(
                 f"{baseURL}{endpoint}",
                 params=params_dict,
                 headers=headers,
-                timeout=timeout
+                timeout=timeout,
+                proxies=proxies[0] if use_proxy else None
             )
-            try:
-                response.json()
-            except json.JSONDecodeError:
-                print(f"Error: {response.status_code} {response.reason} on page {page_num} {urllib.parse.unquote(response.url)}")
-                break # break if error
+            status_code = response.status_code
+            url = urllib.parse.unquote(response.url)
+            response_data = response.json().get('data', [])
+            total_pages_info = response.json().get('totalPages')
 
-        status_code = response.status_code
-        url = urllib.parse.unquote(response.url)
-        response_data = response.json().get('data', [])
-        total_pages_info = response.json().get('totalPages')
-        if total_pages_info:
-            print(f"Total pages: {total_pages_info}")
-        
-        if not response_data:
-            print(f"API returned no data on page {page_num} {urllib.parse.unquote(response.url)}")      
-            break # break if no data
-            
-        df_partition = pd.json_normalize(response_data)
-        df = pd.concat([df, df_partition])
+            if total_pages_info:
+                print(f"Total pages: {total_pages_info}")
 
-        if use_proxy:
-            print(f"Getting page {page_num}, status: {status_code}, url: {url}, proxy: {proxy}")
-        else:
-            print(f"Getting page {page_num}, status: {status_code}, url: {url}")
+            if not response_data:
+                print(f"API returned no data on page {page_num} {url}")
+                break
 
-        if total_pages is None:
-            total_pages = total_pages_info if total_pages_info else (page_num + 1 if len(response_data) > 0 else page_num)
+            df_partition = pd.json_normalize(response_data)
+            df = pd.concat([df, df_partition])
 
-        if page_num >= total_pages:
-            break
+            if use_proxy:
+                print(f"Getting page {page_num}, status: {status_code}, url: {url}, proxy: {proxies[0]}")
+            else:
+                print(f"Getting page {page_num}, status: {status_code}, url: {url}")
 
-        page_num += 1
+            if total_pages is None:
+                total_pages = total_pages_info if total_pages_info else (page_num + 1 if len(response_data) > 0 else page_num)
+
+            if page_num >= total_pages:
+                break
+
+            page_num += 1
+
+        except requests.RequestException as e:
+            if use_proxy:
+                proxy_index = 1
+                while proxy_index < len(proxies):
+                    proxy = proxies[proxy_index]
+                    try:
+                        response = requests.get(
+                            f"{baseURL}{endpoint}",
+                            params=params_dict,
+                            headers=headers,
+                            timeout=timeout,
+                            proxies={ "http": proxy, "https": proxy }
+                        )
+                        break
+                    except requests.RequestException as e:
+                        print(f"Proxy {proxy} failed: {e}, trying next proxy")
+                        proxy_index += 1
+
+                if proxy_index == len(proxies):
+                    print(f"All proxies failed for {url}. Please check the proxy list file at proxy/proxy_list_filter.txt and proxy/proxy_list_raw.txt.")
+                    break
+            else:
+                print(f"Error: {e}, breaking")
+                break
 
     if df.empty:
-        raise ValueError("API returned no data")           
+        raise ValueError("API returned no data")
 
     return df
 
@@ -236,159 +215,6 @@ def add_days_from_today(date_format: str = '%Y-%m-%d', days: int = 0) -> str:
 
     return date_added.strftime(date_format)
 
-# # Deprecated function
-# # Use flatten_dict instead
-# def params_dict_to_string(params_dict: Dict) -> str:
-#     """
-#     Converts a nested dictionary of parameters into a string format suitable for API requests.
-
-#     Parameters:
-#         params_dict (dict): A nested dictionary containing the parameters to be converted.
-
-#     Returns:
-#         str: A string representation of the parameters in the format key1=value1&key2=value2...
-
-#     Example:
-#         params_dict = {'sort': {'field1': 'asc', 'field2': 'desc'}, 'filter': {'date': '2022-01-01'}}
-#         params_string = params_dict_to_string(params_dict)
-#         # Output: 'sort=field1:asc~field2:desc&filter=date:2022-01-01'
-#     """
-#     if not isinstance(params_dict, dict):
-#         raise TypeError("Input `params_dict` must be a dictionary.")
-    
-#     params_dict_change = dict(params_dict)
-#     # Iterate over the nested dictionary to handle complex structures
-#     for k1,v1 in list(params_dict_change.items()):
-#         # Iterate over the inner dictionary to process its elements
-#         if isinstance(v1,dict):
-#             for k2,v2 in list(v1.items()):
-#                 if isinstance(v2,dict):
-#                     v1[k2] = '~'.join([str(k2) +':'+ str(k3) +':'+str(v3) for k3,v3 in v2.items()])
-#                     v1[''] = v1[k2]
-#                     del v1[k2]
-
-#     for k1,v1 in params_dict_change.items(): # sort,date
-#         if isinstance(v1,dict):    
-#             params_dict_change[k1] = '~'.join([str(v2) if k2 == '' else str(k2) +':'+str(v2) for k2,v2 in v1.items()])
-            
-#     params_dict_change = '&'.join([str(k1) + '=' + str(v1) for k1,v1 in params_dict_change.items()])
-
-#     return params_dict_change
-
-### DEPRECATED FUNCTION
-### Use gen_api_config instead
-# def gen_arguments(endpoint: str, symbol: List[str] = None, floor: List[str] = None, sort: str = None, size: int = 9999,
-#                   from_date: str = None, to_date: str = None, 
-#                   from_effective_date: str = None, to_effective_date: str = None,
-#                   from_fiscal_date: str = None, to_fiscal_date: str = None,
-#                   baseURL: str = 'https://api-finfo.vndirect.com.vn',
-#                   list_user_agent: str = 'helper/list_user_agent.txt',
-#                   ) -> Dict:
-#     """
-#     Generates a dictionary of arguments for making API requests to retrieve stock prices based on the provided parameters.
-
-#     Args:
-#     - endpoint (str): The endpoint for retrieving stock prices. Defaults to '/v4/stock_prices'.
-#     - symbol (List[str], optional): A list of stock symbols to filter the results. Defaults to None.
-#     - floor (List[str], optional): A list of stock floor codes to filter the results. Defaults to None.
-#     - sort (str, optional): The sorting parameter for the results. Defaults to 'date'.
-#     - size (int, optional): The maximum number of results to retrieve. Defaults to 9999.
-#     - from_date (str, optional): The start date for filtering stock prices. Defaults to None.
-#     - from_fiscal_date (str, optional): The start date for filtering fiscal events. Defaults to None.
-#     - to_date (str, optional): The end date for filtering stock prices. Defaults to None.
-#     - from_effective_date (str, optional): The start effective date for filtering stock prices. Defaults to None.
-#     - to_date (str, optional): The end effective date for filtering stock prices. Defaults to None.
-#     - to_fiscal_date (str, optional): The end effective date for filtering stock fiscal event. Defaults to None.
-#     - baseURL (str, optional): The base URL of the API. Defaults to 'https://api-finfo.vndirect.com.vn'.
-#     - list_user_agent (str, optional): The file containing the list of user agents. Defaults to 'helper/list_user_agent.txt'.
-#     - filename (str, optional): The name of the configuration file containing headers. Defaults to 'helper/headers.ini'.
-#     - section (str, optional): The section in the configuration file containing headers. Defaults to 'vnd_headers'.
-
-#     Returns:
-#     - Dict: A dictionary containing the arguments required for making the API request, including baseURL, endpoint, params_dict, and headers.
-
-#     Raises:
-#     - ValueError: If either 'from_date' or 'to_date' is missing when the other is provided.
-
-#     Note:
-#     - This function relies on the 'join_stock_string' function from 'helper.string_manipulation' and the 'load_config' function from 'helper.config' for processing symbols and loading headers, respectively.
-#     """
-#     params_dict = {}
-
-#     if sort is not None:
-#         params_dict['sort'] = sort
-
-#     if size is not None:
-#         params_dict['size'] = size
-
-#     if symbol is not None:
-#         params_dict.setdefault('q', {})['code'] = join_stock_string(symbol)
-
-#     if floor is not None:
-#         params_dict.setdefault('q', {})['floor'] = join_stock_string(floor)
-
-#     if from_date is not None and to_date is not None:
-#         params_dict.setdefault('q', {})['date'] = {'gte': from_date, 'lte': to_date}
-#     elif from_date is None and to_date is not None:
-#         raise ValueError('need parameter: from_date')
-#     elif from_date is not None and to_date is None:
-#         raise ValueError('need parameter: to_date')
-    
-#     if from_effective_date is not None and to_effective_date is not None:
-#         params_dict.setdefault('q', {})['effectiveDate'] = {'gte': from_effective_date, 'lte': to_effective_date}
-#     elif from_effective_date is None and to_effective_date is not None:
-#         raise ValueError('need parameter: from_effective_date')
-#     elif from_effective_date is not None and to_effective_date is None:
-#         raise ValueError('need parameter: to_effective_date')
-    
-#     if from_fiscal_date is not None and to_fiscal_date is not None:
-#         params_dict.setdefault('q', {})['fiscalDate'] = {'gte': from_fiscal_date, 'lte': to_fiscal_date}
-#     elif from_fiscal_date is None and to_fiscal_date is not None:
-#         raise ValueError('need parameter: from_fiscal_date')
-#     elif from_fiscal_date is not None and to_fiscal_date is None:
-#         raise ValueError('need parameter: to_fiscal_date')
-    
-#     # List user agents
-#     with open(list_user_agent, 'r') as f:
-#         user_agents = f.read().split('\n')
-
-#     headers = {
-#         'User-Agent': random.choice(user_agents),
-#         'Content-Type': 'application/json',
-#     }
-
-#     return {
-#         'baseURL': baseURL,
-#         'endpoint': endpoint,
-#         'params_dict': params_dict,
-#         'headers': headers,
-#     }
-
-## DEPRECATED
-# def load_arguments_dict(table):
-#     """
-#     Load arguments dictionary for a specific table from a configuration file.
-
-#     Parameters:
-#     table (str): The name of the table to load arguments for.
-
-#     Returns:
-#     dict: A dictionary containing the arguments for the specified table.
-
-#     Raises:
-#     Exception: If the specified table is not found in the configuration file.
-#     """
-#     config = load_config(filename='helper/tables.ini',section=table)
-
-#     # Assign variables to globals
-#     for key,val in config.items():
-#         # print(f'exec(): {key} = {val}')
-#         exec(key + '=' + val, globals())
-    
-#     arguments_dict = globals()['arguments_dict']
-
-#     return arguments_dict
-
 if __name__ == '__main__':
     fk_date = datetime.now().strftime('%Y%m%d')
     schema = 'vnd'
@@ -402,8 +228,6 @@ if __name__ == '__main__':
     print(arguments_dict['params_dict'])
     print('-'*40)
     print(arguments_dict['params_dict']['q'])
-    print('-'*40)
-    print(params_dict_to_string(arguments_dict['params_dict']['q']))
     print('-'*40)
     
     api_to_pandas(
