@@ -13,7 +13,7 @@ if __name__ == '__main__':
         # 'fact_stock_price',
         'factless_stock_events',
         # 'dim_financial_models',
-        # 'factless_financial_statements'
+        'factless_financial_statements'
         ]
 
     for table in table_list:

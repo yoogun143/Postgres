@@ -1,4 +1,4 @@
-# For gte, lte, use 'function' instead of date string so it can be calculated from today
+# For gte, lte, use int to use function to calculate date from today, else use date string
 
 dim_symbol:
   baseURL: 'https://api-finfo.vndirect.com.vn'
@@ -47,3 +47,15 @@ factless_financial_statements:
       fiscalDate:
         gte: -180
         lte: 0 
+
+example:
+  baseURL: 'https://example.com'
+  endpoint: '/v4/stock_prices'
+  params_dict:
+    sort: 'date'
+    size: 49999
+    q: 
+      floor: 'HOSE,HNX,UPCOM,OTC'
+      date: 
+        gte: 0
+        lte: 0

@@ -129,7 +129,7 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_
     os.makedirs(os.path.dirname(data_path), exist_ok=True)
 
     if rerun_proxy == False:
-        print("Rerun proxy manually by running proxy\proxy.py")
+        print("Rerun proxy manually by running proxy/proxy.py")
     
     df = api_to_pandas(
             # baseURL=arguments_dict['baseURL']
