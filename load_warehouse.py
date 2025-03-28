@@ -1,11 +1,8 @@
-from typing import List
-from typing import Any
 from typing import Dict
 import psycopg2
 import psycopg2.extras as extras
 from psycopg2.extensions import AsIs
 from psycopg2 import sql
-# from datetime import datetime
 
 import pandas as pd
 import os
@@ -107,7 +104,7 @@ def update_scd_type_2(schema: str, table: str, fk_date: str) -> None:
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
     
-def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_proxy: bool = False,rerun_proxy: bool = True,timeout: int = 10) -> None:
+def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_proxy: bool = False,rerun_proxy: bool = True,timeout: int = 10, data_json_field: str = 'data') -> None:
     """
     Fetches data from an API endpoint and exports it to a CSV file.
 
@@ -118,6 +115,8 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_
         fk_date (str): The foreign key date used in the CSV file name.
         use_proxy (bool): Whether to use a proxy for the API request. Defaults to False.
         rerun_proxy (bool): Whether to rerun the proxy if the API request fails. Defaults to True.
+        timeout (int, optional): The timeout value for the API request in seconds. Defaults to 10.
+        data_json_field (str, optional): The field name in the JSON response to extract data from. Defaults to 'data'.
 
     Returns:
         None
@@ -139,7 +138,8 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_
             **arguments_dict, ##can be used instead of extract key-value from arguments_dict
             timeout=timeout,
             use_proxy=use_proxy,
-            rerun_proxy=rerun_proxy
+            rerun_proxy=rerun_proxy,
+            data_json_field=data_json_field
             )
     # df.columns = [x.lower() for x in df.columns]
     df['fk_date'] = fk_date

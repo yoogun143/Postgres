@@ -46,7 +46,26 @@ factless_financial_statements:
     q:
       fiscalDate:
         gte: -180
-        lte: 0 
+        lte: 0
+
+fact_stock_order:
+  baseURL: 'https://fot-api-web.mbs.com.vn'
+  endpoint_order: '/v1/accounts/orders/{account}'
+  endpoint_deal: '/v1/accounts/orders/deals/{account}'
+  params_dict:
+    pageSize: 1000
+
+fact_cash_statement:
+  baseURL: 'https://fot-api-web.mbs.com.vn'
+  endpoint: '/v1/accounts/cash/statement'
+  params_dict:
+    pageSize: 1000
+
+fact_stock_statement:
+  baseURL: 'https://fot-api-web.mbs.com.vn'
+  endpoint: '/v1/accounts/share/statement'
+  params_dict:
+    pageSize: 1000
 
 example:
   baseURL: 'https://example.com'
