@@ -1,36 +1,18 @@
-from typing import List
-from typing import Any
 from typing import Dict
 import psycopg2
 import psycopg2.extras as extras
 from psycopg2.extensions import AsIs
 from psycopg2 import sql
-# from datetime import datetime
 
 import pandas as pd
 import os
-import sqlite3
 
 import xlwings as xw
 
 from helper.config import load_config
 from helper.string_manipulation import sql_to_list,get_column_name_from_create_table,comma_separated_to_list
-from helper.api_manipulation import api_to_pandas,gen_arguments
+from helper.api_manipulation import api_to_pandas
 
-# # test strng
-# from datetime import datetime
-# schema='vnd'
-# table='dim_symbol'
-# fk_date = datetime.now().strftime('%Y%m%d')
-# floor=['HOSE','HNX','UPCOM','OTC']
-# endpoint= '/v4/stocks'
-# arguments_dict=gen_arguments(endpoint=endpoint,floor=floor)
-
-# schema = 'vnd' 
-# table = 'dim_symbol'
-# fk_date = 20230701
-# config = load_config()
-# conn = psycopg2.connect(**config) 
 
 def update_scd_type_2(schema: str, table: str, fk_date: str) -> None:
     '''
@@ -122,7 +104,7 @@ def update_scd_type_2(schema: str, table: str, fk_date: str) -> None:
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)
     
-def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_proxy: bool = False,rerun_proxy: bool = True,timeout: int = 10) -> None:
+def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_proxy: bool = False,rerun_proxy: bool = True,timeout: int = 10, data_json_field: str = 'data') -> None:
     """
     Fetches data from an API endpoint and exports it to a CSV file.
 
@@ -133,6 +115,8 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_
         fk_date (str): The foreign key date used in the CSV file name.
         use_proxy (bool): Whether to use a proxy for the API request. Defaults to False.
         rerun_proxy (bool): Whether to rerun the proxy if the API request fails. Defaults to True.
+        timeout (int, optional): The timeout value for the API request in seconds. Defaults to 10.
+        data_json_field (str, optional): The field name in the JSON response to extract data from. Defaults to 'data'.
 
     Returns:
         None
@@ -144,7 +128,7 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_
     os.makedirs(os.path.dirname(data_path), exist_ok=True)
 
     if rerun_proxy == False:
-        print("Rerun proxy manually by running proxy\proxy.py")
+        print("Rerun proxy manually by running proxy/proxy.py")
     
     df = api_to_pandas(
             # baseURL=arguments_dict['baseURL']
@@ -154,7 +138,8 @@ def api_to_csv(arguments_dict: Dict, schema: str, table: str, fk_date: str, use_
             **arguments_dict, ##can be used instead of extract key-value from arguments_dict
             timeout=timeout,
             use_proxy=use_proxy,
-            rerun_proxy=rerun_proxy
+            rerun_proxy=rerun_proxy,
+            data_json_field=data_json_field
             )
     # df.columns = [x.lower() for x in df.columns]
     df['fk_date'] = fk_date
@@ -337,9 +322,3 @@ def pandas_to_warehouse(df:pd.DataFrame, schema:str, table:str, truncate:bool=Tr
 
     except (psycopg2.DatabaseError, Exception) as error:
         print(error)    
-
-if __name__ == '__main__':
-    arguments_dict=gen_arguments(symbol=['MWG','FPT','VNM','VND'],from_date='2024-06-01',to_date='2024-06-21')
-    api_to_csv(arguments_dict,'vnd','daily_acctno_cashflow',20240621)
-    csv_to_staging('vnd','daily_acctno_cashflow',20240621)
-    staging_to_warehouse('vnd','daily_acctno_cashflow',20240621)

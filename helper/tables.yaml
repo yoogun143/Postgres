@@ -1,0 +1,80 @@
+# For gte, lte, use int to use function to calculate date from today, else use date string
+
+dim_symbol:
+  baseURL: 'https://api-finfo.vndirect.com.vn'
+  endpoint: '/v4/stocks'
+  params_dict:
+    size: 99999
+    q:
+      floor: 'HOSE,HNX,UPCOM,OTC'
+
+fact_stock_price:
+  baseURL: 'https://api-finfo.vndirect.com.vn'
+  endpoint: '/v4/stock_prices'
+  params_dict:
+    sort: 'date'
+    size: 49999
+    q: 
+      floor: 'HOSE,HNX,UPCOM,OTC'
+      date: 
+        gte: 0
+        lte: 0
+
+factless_stock_events:
+  baseURL: 'https://api-finfo.vndirect.com.vn'
+  endpoint: '/v4/events'
+  params_dict:
+    sort: 'effectiveDate'
+    size: 9999
+    q: 
+      effectiveDate: 
+        gte: -365
+        lte: 365
+
+dim_financial_models:
+  baseURL: 'https://api-finfo.vndirect.com.vn'
+  endpoint: '/v4/financial_models'
+  params_dict:
+    size: 99999
+
+factless_financial_statements:
+  baseURL: 'https://api-finfo.vndirect.com.vn'
+  endpoint: '/v4/financial_statements'
+  params_dict:
+    sort: 'fiscalDate'
+    size: 99999
+    q:
+      fiscalDate:
+        gte: -180
+        lte: 0
+
+fact_stock_order:
+  baseURL: 'https://fot-api-web.mbs.com.vn'
+  endpoint_order: '/v1/accounts/orders/{account}'
+  endpoint_deal: '/v1/accounts/orders/deals/{account}'
+  params_dict:
+    pageSize: 1000
+
+fact_cash_statement:
+  baseURL: 'https://fot-api-web.mbs.com.vn'
+  endpoint: '/v1/accounts/cash/statement'
+  params_dict:
+    pageSize: 1000
+
+fact_stock_statement:
+  baseURL: 'https://fot-api-web.mbs.com.vn'
+  endpoint: '/v1/accounts/share/statement'
+  params_dict:
+    pageSize: 1000
+
+example:
+  baseURL: 'https://example.com'
+  endpoint: '/v4/stock_prices'
+  params_dict:
+    sort: 'date'
+    size: 49999
+    q: 
+      floor: 'HOSE,HNX,UPCOM,OTC'
+      date: 
+        gte: 0
+        lte: 0

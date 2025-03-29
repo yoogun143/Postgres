@@ -10,6 +10,7 @@ list_user_agent.txt
 calc_price_pkg.sql
 test_raw.ipynb
 .env
+tables.yaml
 
 # Folder 
 __pycache__/
