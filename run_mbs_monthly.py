@@ -1,6 +1,6 @@
 from helper.api_manipulation import get_bearer_token, gen_api_config
 from helper.config import load_config
-from mbs import get_order_merged, get_cash_statement, get_stock_statement
+from helper.mbs import get_order_merged, get_cash_statement, get_stock_statement
 from load_warehouse import pandas_to_warehouse, api_to_csv
 from datetime import datetime, timedelta
 
@@ -65,7 +65,7 @@ if __name__ == '__main__':
             )
 
             order_merged = get_order_merged(fk_date=fk_date)
-            # pandas_to_warehouse(order_merged, schema=schema, table='fact_stock_order', truncate=False)
+            pandas_to_warehouse(order_merged, schema=schema, table='fact_stock_order', truncate=False)
 
         elif table == 'fact_cash_statement':
             arguments_dict = gen_api_config()["fact_cash_statement"]
@@ -84,7 +84,7 @@ if __name__ == '__main__':
             )
 
             fact_cash_statement = get_cash_statement(fk_date=fk_date)
-            # pandas_to_warehouse(fact_cash_statement, schema=schema, table='fact_cash_statement', truncate=False)
+            pandas_to_warehouse(fact_cash_statement, schema=schema, table='fact_cash_statement', truncate=False)
 
         elif table == 'fact_stock_statement':
             arguments_dict = gen_api_config()["fact_stock_statement"]
@@ -104,4 +104,4 @@ if __name__ == '__main__':
 
             fact_stock_statement = get_stock_statement(fk_date=fk_date)
             print(fact_stock_statement)
-            # pandas_to_warehouse(fact_stock_statement, schema=schema, table='fact_stock_statement', truncate=False)
+            pandas_to_warehouse(fact_stock_statement, schema=schema, table='fact_stock_statement', truncate=False)
