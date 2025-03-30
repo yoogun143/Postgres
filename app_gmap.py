@@ -177,36 +177,100 @@ def save_timeline_changes(df, _conn):
 # Get data for selected date
 visit_df, activity_df = get_timeline_data(selected_date_str, conn)
 
-# Create map
-m = folium.Map(location=[21.0278, 105.8342], zoom_start=13)
+# Get all coordinates for map zoom display
+visit_path_coordinates = sum(visit_df['path'].apply(lambda x: list(x.values() if isinstance(x, dict) else [])),[])
+visit_coordinates = visit_df[['lat', 'lon']].apply(lambda x: [float(x['lat']), float(x['lon'])], axis=1).to_list()
+activity_path_coordinates = sum(activity_df['path'].apply(lambda x: list(x.values() if isinstance(x, dict) else [])),[])
+activity_start_coordinates = activity_df[['start_lat', 'start_lon']].apply(lambda x: [float(x['start_lat']), float(x['start_lon'])], axis=1).to_list()
+activity_end_coordinates = activity_df[['end_lat', 'end_lon']].apply(lambda x: [float(x['end_lat']), float(x['end_lon'])], axis=1).to_list()
+coordinates = sum([visit_path_coordinates, visit_coordinates, activity_path_coordinates, activity_start_coordinates, activity_end_coordinates], [])
+min_lat = min((coord[0] for coord in coordinates if coord[0] is not None), default=0)
+max_lat = max((coord[0] for coord in coordinates if coord[0] is not None), default=0)
+min_lon = min((coord[1] for coord in coordinates if coord[1] is not None), default=0)
+max_lon = max((coord[1] for coord in coordinates if coord[1] is not None), default=0)
+
+f = folium.Figure(width=10000, height=10000)
+m = folium.Map(
+                location=[(min_lat + max_lat)/2, (min_lon + max_lon)/2],
+                zoom_start=13, 
+                control_scale=True,
+                tiles="cartodbpositron",
+               ).add_to(f)
+
+# # if the points are too close to each other, cluster them, create a cluster overlay with MarkerCluster
 marker_cluster = MarkerCluster().add_to(m)
 
-# Add markers for visits
-for idx, row in activity_df.iterrows():
-    # Start marker
-    folium.Marker(
-        [row['start_lat'], row['start_lon']],
-        popup=f"Start: {datetime.fromtimestamp(row['start_time'])}<br>Location: {row['start_location_name']}",
-        icon=folium.Icon(color='green', icon='info-sign')
-    ).add_to(marker_cluster)
-    
-    # End marker
-    folium.Marker(
-        [row['end_lat'], row['end_lon']],
-        popup=f"End: {datetime.fromtimestamp(row['end_time'])}<br>Location: {row['end_location_name']}",
-        icon=folium.Icon(color='red', icon='info-sign')
-    ).add_to(marker_cluster)
-
-# Add path lines
-for idx, row in activity_df.iterrows():
-    if row['path']:
-        path_points = [[coords[0], coords[1]] for coords in row['path'].values()]
+for _, item in activity_df.iterrows():
+    # print(item['path'].values())
+    tooltip_txt = '<p>'\
+                +'From: '\
+                +pd.to_datetime(item['start_time'], unit = 's').strftime('%Y-%m-%d %H:%M:%S')\
+                +'<br> To: '\
+                +pd.to_datetime(item['end_time'], unit = 's').strftime('%Y-%m-%d %H:%M:%S')\
+                +'<br> Transportation: '\
+                +item['vehicle_type']\
+                +'</p>'
+    if isinstance(item['path'], dict):
         AntPath(
-            locations=path_points,
-            popup=f"Journey: {row['vehicle_type']}",
-            weight=2,
-            color='blue'
+            locations=list(item['path'].values()), 
+            color=item['color'],
+            delay=800,
+            weight=5,
+            opacity=0.5,
+            # reverse="True", 
+            dash_array=[10, 20],
+            tooltip=tooltip_txt
         ).add_to(m)
+
+        for key, value in item['path'].items():
+            folium.CircleMarker(
+                value,
+                radius=5,
+                fill=True,
+                color=None,
+                fill_color = 'blue',
+                fill_opacity=0.3,
+                tooltip=pd.to_datetime(key, unit = 's').strftime('%Y-%m-%d %H:%M:%S')
+            ).add_to(m)
+
+    folium.Marker(
+                    location = (item['start_lat'], item['start_lon']),
+                    icon = folium.Icon(icon='play', prefix='glyphicon', color='orange'),
+                    tooltip=tooltip_txt
+                ).add_to(marker_cluster)    
+    
+    folium.Marker(
+                    location = (item['end_lat'], item['end_lon']),
+                    icon = folium.Icon(icon='stop', prefix='glyphicon', color='blue'),
+                    tooltip=tooltip_txt
+                ).add_to(marker_cluster)    
+        
+for _, item in visit_df.iterrows():
+    if isinstance(item['path'], dict):
+        folium.PolyLine(
+            list(item['path'].values()), 
+            color='black',
+            weight=0.5,
+            opacity=0.5,
+            # dash_array='5, 5'
+            ).add_to(m)
+    
+    tooltip_txt = '<p>'\
+                +'From: '\
+                +pd.to_datetime(item['start_time'], unit = 's').strftime('%Y-%m-%d %H:%M:%S')\
+                +'<br> To: '\
+                +pd.to_datetime(item['end_time'], unit = 's').strftime('%Y-%m-%d %H:%M:%S')\
+                +'<br> Duration: '\
+                +item['duration']\
+                +'</p>'
+    
+    folium.Marker(
+                    location = (item['lat'], item['lon']),
+                    icon = folium.Icon(icon='ok', prefix='glyphicon', color='green'),
+                    tooltip = tooltip_txt
+                ).add_to(marker_cluster)    
+    
+m.fit_bounds(m.get_bounds())
 
 # Display layout
 st.subheader("Timeline")
