@@ -6,6 +6,7 @@ import pandas as pd
 from datetime import datetime
 import psycopg2
 from helper.config import load_config
+import numpy as np
 
 # Page config
 st.set_page_config(
@@ -292,38 +293,63 @@ m.fit_bounds(m.get_bounds())
 
 # Display layout
 st.subheader("Timeline")
-# Display timeline data
-timeline_df = activity_df[[
-    'start_time', 
-    'end_time', 
-    'start_location_name', 
-    'end_location_name', 
-    'vehicle_type'
-]].copy()
+
+# Create combined timeline dataframe
+timeline_df = pd.DataFrame(
+    np.concatenate([
+        activity_df[['start_time_human', 'end_time_human', 'start_time', 'end_time', 
+                    'start_location_id', 'start_location_name', 
+                    'end_location_id', 'end_location_name', 'vehicle_type']].to_numpy(),
+        visit_df[['start_time_human', 'end_time_human', 'start_time', 'end_time', 
+                 'location_id', 'location_name']].assign(
+                     end_location_id=None, 
+                     end_location_name=None, 
+                     vehicle_type=None).rename(
+                         columns={'location_id': 'start_location_id', 
+                                'location_name': 'start_location_name'}).to_numpy()
+    ]),
+    columns=['start_time_human', 'end_time_human', 'start_time', 'end_time', 
+             'start_location_id', 'start_location_name', 
+             'end_location_id', 'end_location_name', 'vehicle_type']
+).sort_values('start_time')
 
 # Store original timestamps for reference
 timeline_df['_original_start_time'] = timeline_df['start_time']
 timeline_df['_original_end_time'] = timeline_df['end_time']
 
-# Convert timestamps for display
-timeline_df['start_time'] = timeline_df['start_time'].apply(lambda x: datetime.fromtimestamp(x))
-timeline_df['end_time'] = timeline_df['end_time'].apply(lambda x: datetime.fromtimestamp(x))
-
 # Create editable data editor
 edited_df = st.data_editor(
-    timeline_df.drop(['_original_start_time', '_original_end_time'], axis=1),
+    timeline_df,  
     hide_index=True,
     column_config={
-        "start_time": st.column_config.DatetimeColumn(
-            "Start Time",
-            format="D MMM YYYY, HH:mm"
+        "start_time_human": st.column_config.DatetimeColumn(
+            "Start Time (Human)",
+            format="D MMM YYYY, HH:mm",
+            disabled=True
         ),
-        "end_time": st.column_config.DatetimeColumn(
-            "End Time",
-            format="D MMM YYYY, HH:mm"
+        "end_time_human": st.column_config.DatetimeColumn(
+            "End Time (Human)",
+            format="D MMM YYYY, HH:mm",
+            disabled=True
+        ),
+        "start_time": st.column_config.NumberColumn(
+            "Start Time (Unix)",
+            disabled=True
+        ),
+        "end_time": st.column_config.NumberColumn(
+            "End Time (Unix)",
+            disabled=True
+        ),
+        "start_location_id": st.column_config.NumberColumn(
+            "Start Location ID",
+            disabled=True
         ),
         "start_location_name": st.column_config.TextColumn(
             "Start Location",
+            disabled=True
+        ),
+        "end_location_id": st.column_config.NumberColumn(
+            "End Location ID",
             disabled=True
         ),
         "end_location_name": st.column_config.TextColumn(
@@ -332,10 +358,17 @@ edited_df = st.data_editor(
         ),
         "vehicle_type": st.column_config.SelectboxColumn(
             "Vehicle Type",
-            options=["WALKING", "IN_PASSENGER_VEHICLE", "CYCLING", "FLYING"]
+            options=["WALKING", "IN_PASSENGER_VEHICLE", "CYCLING", "FLYING"],
+            disabled=True
         )
     },
-    key="timeline_editor"
+    column_order=[
+        "start_time_human", "end_time_human",
+        "start_time", "end_time",
+        "start_location_id", "start_location_name",
+        "end_location_id", "end_location_name",
+        "vehicle_type"
+    ]
 )
 
 # Check if the dataframe was edited
