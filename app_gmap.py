@@ -227,6 +227,33 @@ def save_timeline_changes(df, _conn):
         _conn.commit()
     st.success("Changes saved successfully!")
 
+# Function to get all locations
+def get_all_locations_data(_conn):
+    with _conn.cursor() as cur:
+        cur.execute("""
+            SELECT location_id, location_name, lat, lon, category 
+            FROM gmap.dim_location 
+            ORDER BY location_id
+        """)
+        results = cur.fetchall()
+        return pd.DataFrame(results, columns=['location_id', 'location_name', 'lat', 'lon', 'category'])
+
+# Function to add a new location
+def add_new_location(location_name, lat, lon, category, _conn):
+    with _conn.cursor() as cur:
+        # Get the next location_id
+        cur.execute("SELECT MAX(location_id) FROM gmap.dim_location")
+        max_id = cur.fetchone()[0]
+        next_id = max_id + 1 if max_id else 1
+        
+        # Insert new location
+        cur.execute("""
+            INSERT INTO gmap.dim_location (location_id, location_name, lat, lon, category)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (next_id, location_name, lat, lon, category))
+        _conn.commit()
+    return next_id
+
 # Get data for selected date
 visit_df, activity_df = get_timeline_data(selected_date_str, conn)
 
@@ -435,3 +462,43 @@ if st.session_state.get("timeline_editor", {}).get("edited_rows"):
 
 st.subheader("Map View")
 folium_static(m)
+
+# Add a compact location management section at the bottom
+with st.expander("Location Management", expanded=False):
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Display locations in a data table
+        st.caption("All Locations")
+        locations_df = get_all_locations_data(conn)
+        st.dataframe(
+            locations_df,
+            column_config={
+                "location_id": st.column_config.NumberColumn("ID", width="small"),
+                "location_name": st.column_config.TextColumn("Name"),
+                "lat": st.column_config.NumberColumn("Latitude", format="%.6f", width="medium"),
+                "lon": st.column_config.NumberColumn("Longitude", format="%.6f", width="medium"),
+                "category": st.column_config.TextColumn("Category", width="small")
+            },
+            use_container_width=True,
+            height=300
+        )
+    
+    with col2:
+        # Add new location form
+        st.caption("Add New Location")
+        with st.form("add_location_form", border=False):
+            new_location_name = st.text_input("Name", key="loc_name", label_visibility="collapsed", placeholder="Location Name")
+            new_category = st.text_input("Category", key="loc_cat", label_visibility="collapsed", placeholder="Category")
+            new_lat = st.number_input("Lat", format="%.6f", step=0.000001, key="loc_lat", label_visibility="collapsed", placeholder="Latitude")
+            new_lon = st.number_input("Lon", format="%.6f", step=0.000001, key="loc_lon", label_visibility="collapsed", placeholder="Longitude")
+            
+            submit_button = st.form_submit_button("Add Location")
+            
+            if submit_button:
+                if new_location_name:
+                    new_id = add_new_location(new_location_name, new_lat, new_lon, new_category, conn)
+                    st.success(f"Added location ID: {new_id}")
+                    st.experimental_rerun()
+                else:
+                    st.error("Name required")
