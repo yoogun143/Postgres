@@ -17,14 +17,26 @@ st.set_page_config(
 # Title
 st.title("🗺️ Google Maps Timeline Viewer")
 
-# Sidebar
-st.sidebar.header("Settings")
+# Custom CSS for date picker
+st.markdown("""
+    <style>
+        div[data-baseweb="calendar"] {
+            font-size: 12px;
+        }
+        div[data-baseweb="input"] {
+            width: 200px;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-# Date selector
-selected_date = st.sidebar.date_input(
-    "Select Date",
-    value=datetime.now()
-)
+# Date picker in a smaller column
+col1, col2 = st.columns([1, 4])
+with col1:
+    selected_date = st.date_input(
+        "Select Date",
+        value=datetime.now(),
+        key="date_picker"
+    )
 
 # Convert selected date to the format needed (YYYYMMDD)
 selected_date_str = selected_date.strftime("%Y%m%d")
