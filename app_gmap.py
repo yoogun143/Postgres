@@ -30,17 +30,31 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Add refresh button in the sidebar
+refresh_sidebar = st.sidebar.button("🔄 Refresh Data", key="refresh_sidebar")
+
 # Date picker in a smaller column
 col1, col2 = st.columns([1, 4])
 with col1:
+    # Date selection
     selected_date = st.date_input(
         "Select Date",
-        value=datetime.now(),
-        key="date_picker"
+        datetime.now().date(),
+        format="YYYY-MM-DD"
     )
+    selected_date_str = selected_date.strftime('%Y%m%d')
+    
+    # Add a prominent refresh button
+    refresh_main = st.button("🔄 Refresh Data", use_container_width=True, key="refresh_main")
 
-# Convert selected date to the format needed (YYYYMMDD)
-selected_date_str = selected_date.strftime("%Y%m%d")
+# Create a cache key that changes when refresh buttons are clicked
+if 'cache_key' not in st.session_state:
+    st.session_state.cache_key = 0
+    
+# Update cache key when refresh buttons are clicked
+if refresh_sidebar or refresh_main:
+    st.session_state.cache_key += 1
+    st.rerun()
 
 # Database connection
 @st.cache_resource
@@ -51,7 +65,7 @@ def init_connection():
 conn = init_connection()
 
 @st.cache_data
-def get_timeline_data(date_str, _conn):
+def get_timeline_data(date_str, _conn, cache_key=0):
     # Convert date string to unix timestamp
     from_date_unix = int(datetime.strptime(str(date_str) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) + 25200
     to_date_unix = int(datetime.strptime(str(date_str) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp()) + 25200
@@ -278,7 +292,7 @@ def add_new_location(location_name, lat, lon, category, _conn):
     return next_id
 
 # Get data for selected date
-visit_df, activity_df = get_timeline_data(selected_date_str, conn)
+visit_df, activity_df = get_timeline_data(selected_date_str, conn, st.session_state.cache_key)
 
 # Get all coordinates for map zoom display
 visit_path_coordinates = sum(visit_df['path'].apply(lambda x: list(x.values() if isinstance(x, dict) else [])),[])
@@ -522,6 +536,6 @@ with st.expander("Location Management", expanded=False):
                 if new_location_name:
                     new_id = add_new_location(new_location_name, new_lat, new_lon, new_category, conn)
                     st.success(f"Added location ID: {new_id}")
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("Name required")
