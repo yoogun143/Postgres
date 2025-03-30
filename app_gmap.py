@@ -268,15 +268,15 @@ def save_timeline_changes(df, _conn):
 def get_all_locations_data(_conn):
     with _conn.cursor() as cur:
         cur.execute("""
-            SELECT location_id, location_name, lat, lon, category 
+            SELECT location_id, location_name, address, lat, lon, category 
             FROM gmap.dim_location 
             ORDER BY location_id
         """)
         results = cur.fetchall()
-        return pd.DataFrame(results, columns=['location_id', 'location_name', 'lat', 'lon', 'category'])
+        return pd.DataFrame(results, columns=['location_id', 'location_name', 'address', 'lat', 'lon', 'category'])
 
 # Function to add a new location
-def add_new_location(location_name, lat, lon, category, _conn):
+def add_new_location(location_name, address, lat, lon, category, _conn):
     with _conn.cursor() as cur:
         # Get the next location_id
         cur.execute("SELECT MAX(location_id) FROM gmap.dim_location")
@@ -285,11 +285,28 @@ def add_new_location(location_name, lat, lon, category, _conn):
         
         # Insert new location
         cur.execute("""
-            INSERT INTO gmap.dim_location (location_id, location_name, lat, lon, category)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (next_id, location_name, lat, lon, category))
+            INSERT INTO gmap.dim_location (location_id, location_name, address, lat, lon, category)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (next_id, location_name, address, lat, lon, category))
         _conn.commit()
     return next_id
+
+# Function to initialize form values
+def init_form_values():
+    """Initialize default values for location form if not already in session state"""
+    if "form_clear_state" not in st.session_state:
+        st.session_state.form_clear_state = False
+        
+    # Initialize form values when clear state is True
+    if st.session_state.form_clear_state:
+        st.session_state.loc_name = ""
+        st.session_state.loc_cat = ""
+        st.session_state.loc_addr = ""
+        st.session_state.loc_coords = ""
+        st.session_state.loc_lat = 0.0
+        st.session_state.loc_lon = 0.0
+        # Reset the clear state
+        st.session_state.form_clear_state = False
 
 # Get data for selected date
 visit_df, activity_df = get_timeline_data(selected_date_str, conn, st.session_state.cache_key)
@@ -513,28 +530,59 @@ with st.expander("Location Management", expanded=False):
             column_config={
                 "location_id": st.column_config.NumberColumn("ID", width="small"),
                 "location_name": st.column_config.TextColumn("Name"),
+                "address": st.column_config.TextColumn("Address"),
                 "lat": st.column_config.NumberColumn("Latitude", format="%.6f", width="medium"),
                 "lon": st.column_config.NumberColumn("Longitude", format="%.6f", width="medium"),
                 "category": st.column_config.TextColumn("Category", width="small")
             },
             use_container_width=True,
-            height=300
+            height=300,
+            hide_index=True
         )
     
     with col2:
         # Add new location form
         st.caption("Add New Location")
+        
+        # Initialize form values
+        init_form_values()
+        
+        # Clear form button (outside the form)
+        if st.button("Clear Form", key="clear_form_button"):
+            st.session_state.form_clear_state = True
+            st.rerun()
+        
         with st.form("add_location_form", border=False):
             new_location_name = st.text_input("Name", key="loc_name", label_visibility="collapsed", placeholder="Location Name")
             new_category = st.text_input("Category", key="loc_cat", label_visibility="collapsed", placeholder="Category")
-            new_lat = st.number_input("Lat", format="%.6f", step=0.000001, key="loc_lat", label_visibility="collapsed", placeholder="Latitude")
-            new_lon = st.number_input("Lon", format="%.6f", step=0.000001, key="loc_lon", label_visibility="collapsed", placeholder="Longitude")
+            new_address = st.text_input("Address", key="loc_addr", label_visibility="collapsed", placeholder="Address")
             
+            # Add coordinates input in format "lat, lon"
+            coords_input = st.text_input("Coordinates", key="loc_coords", label_visibility="collapsed", 
+                                        placeholder="Coordinates (e.g., 21.047597, 105.744979)")
+            
+            # Keep individual lat/lon inputs but hide them if coordinates are provided
+            new_lat = st.number_input("Lat", format="%.6f", step=0.000001, key="loc_lat", 
+                                     label_visibility="collapsed", placeholder="Latitude")
+            new_lon = st.number_input("Lon", format="%.6f", step=0.000001, key="loc_lon", 
+                                     label_visibility="collapsed", placeholder="Longitude")
+            
+            # Submit button
             submit_button = st.form_submit_button("Add Location")
             
             if submit_button:
                 if new_location_name:
-                    new_id = add_new_location(new_location_name, new_lat, new_lon, new_category, conn)
+                    # Parse coordinates if provided
+                    if coords_input:
+                        try:
+                            lat_str, lon_str = coords_input.split(',')
+                            new_lat = float(lat_str.strip())
+                            new_lon = float(lon_str.strip())
+                        except:
+                            st.error("Invalid coordinates format. Use format: latitude, longitude")
+                            st.stop()
+                    
+                    new_id = add_new_location(new_location_name, new_address, new_lat, new_lon, new_category, conn)
                     st.success(f"Added location ID: {new_id}")
                     st.rerun()
                 else:
