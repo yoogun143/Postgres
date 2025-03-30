@@ -10,8 +10,8 @@ if __name__ == '__main__':
     # Constants
     schema = 'gmap'
     df_path = 'raw/location-history-20250304.json'
-    from_date = 20250228
-    to_date = from_date
+    from_date = 20250301
+    to_date = 20250304
 
     # Convert dates to UNIX timestamps
     from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) + 25200 # Add 7 hours

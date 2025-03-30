@@ -56,9 +56,15 @@ def get_timeline_data(date_str, _conn):
     from_date_unix = int(datetime.strptime(str(date_str) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) + 25200
     to_date_unix = int(datetime.strptime(str(date_str) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp()) + 25200
     
+    # Add debugging information
+    st.sidebar.write("Debug Information:")
+    st.sidebar.write(f"Date string: {date_str}")
+    st.sidebar.write(f"From timestamp: {from_date_unix} ({datetime.fromtimestamp(from_date_unix).strftime('%Y-%m-%d %H:%M:%S')})")
+    st.sidebar.write(f"To timestamp: {to_date_unix} ({datetime.fromtimestamp(to_date_unix).strftime('%Y-%m-%d %H:%M:%S')})")
+    
     with _conn.cursor() as cur:
         # Get activity data
-        cur.execute(f"""
+        activity_query = f"""
                 select 
                     a.start_time
                     ,a.end_time
@@ -108,11 +114,20 @@ def get_timeline_data(date_str, _conn):
                     ,c.category
                     ,d.location_name
                     ,d.category
-                """)
+                """
+                
+        # Show the SQL query for debugging
+        with st.sidebar.expander("Activity Query"):
+            st.code(activity_query, language="sql")
+            
+        cur.execute(activity_query)
         activity = pd.DataFrame(cur.fetchall(), columns=[desc[0] for desc in cur.description])
+        
+        # Show raw results count
+        st.sidebar.write(f"Activity results: {len(activity)} rows")
 
         # Get visit data
-        cur.execute(f"""
+        visit_query = f"""
                 select 
                     a.start_time 
                     ,a.end_time 
@@ -146,8 +161,16 @@ def get_timeline_data(date_str, _conn):
                     ,c.lon
                     ,c.location_name
                     ,c.category
-                """)
+                """
+                
+        with st.sidebar.expander("Visit Query"):
+            st.code(visit_query, language="sql")
+            
+        cur.execute(visit_query)
         visit = pd.DataFrame(cur.fetchall(), columns=[desc[0] for desc in cur.description])
+        
+        # Show raw results count
+        st.sidebar.write(f"Visit results: {len(visit)} rows")
 
     # Process path data in activity DataFrame
     activity['path'] = activity['path'].apply(lambda x: {item['txtime']: [item['lat'], item['lon']] for item in x} if x is not None else None)
