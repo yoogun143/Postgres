@@ -172,7 +172,6 @@ def get_timeline_data(date_str, _conn):
 
     return visit, activity
 
-<<<<<<< HEAD
 # Function to get location name from ID
 def get_location_name(location_id, _conn):
     if location_id is None:
@@ -186,76 +185,35 @@ def get_location_name(location_id, _conn):
         result = cur.fetchone()
         return result[0] if result else None
 
-# Function to extract location ID from formatted string
-def extract_location_id(formatted_str):
-    if not formatted_str or ":" not in formatted_str:
-        return None
-    return int(formatted_str.split(":")[0])
-
-# Function to get all locations for dropdown
-@st.cache_data
-def get_all_locations(_conn):
-    with _conn.cursor() as cur:
-        cur.execute("""
-            SELECT location_id, location_name 
-            FROM gmap.dim_location 
-            ORDER BY location_name
-        """)
-        results = cur.fetchall()
-        # Format as "location_id: location_name"
-        return [f"{loc_id}: {loc_name}" for loc_id, loc_name in results]
-
 # Function to generate SQL statements for preview
 def generate_sql_statements(df, edited_rows):
     sql_statements = []
     for idx in edited_rows:
         row = df.iloc[idx]
-        
-        # Extract location IDs from the formatted strings if needed
-        start_loc_id = row['start_location_id_display'] if 'start_location_id_display' in row else row['start_location_id']
-        if isinstance(start_loc_id, str) and ":" in start_loc_id:
-            start_loc_id = extract_location_id(start_loc_id)
-            
-        end_loc_id = row['end_location_id_display'] if 'end_location_id_display' in row else row['end_location_id']
-        if not pd.isna(end_loc_id) and isinstance(end_loc_id, str) and ":" in end_loc_id:
-            end_loc_id = extract_location_id(end_loc_id)
-        
-        if pd.isna(end_loc_id) or end_loc_id is None:  # This is a visit record
+        if pd.isna(row['end_location_id']):  # This is a visit record
             sql = f"""UPDATE gmap.fact_visit
-                     SET location_id = {start_loc_id}
+                     SET location_id = {row['start_location_id']}
                      WHERE start_time = {int(row['start_time'])} 
                      AND end_time = {int(row['end_time'])};"""
         else:  # This is an activity record
             sql = f"""UPDATE gmap.fact_activity
-                     SET start_location_id = {start_loc_id},
-                         end_location_id = {end_loc_id}
+                     SET start_location_id = {row['start_location_id']},
+                         end_location_id = {row['end_location_id']}
                      WHERE start_time = {int(row['start_time'])} 
                      AND end_time = {int(row['end_time'])};"""
         sql_statements.append(sql)
     return sql_statements
 
-=======
->>>>>>> parent of 1cd83a9 (wip)
 # Function to save changes to database
 def save_timeline_changes(df, _conn):
     with _conn.cursor() as cur:
         for idx, row in df.iterrows():
-<<<<<<< HEAD
-            # Extract location IDs from the formatted strings if needed
-            start_loc_id = row['start_location_id_display'] if 'start_location_id_display' in row else row['start_location_id']
-            if isinstance(start_loc_id, str) and ":" in start_loc_id:
-                start_loc_id = extract_location_id(start_loc_id)
-                
-            end_loc_id = row['end_location_id_display'] if 'end_location_id_display' in row else row['end_location_id']
-            if not pd.isna(end_loc_id) and isinstance(end_loc_id, str) and ":" in end_loc_id:
-                end_loc_id = extract_location_id(end_loc_id)
-            
-            if pd.isna(end_loc_id) or end_loc_id is None:  # This is a visit record
+            if pd.isna(row['end_location_id']):  # This is a visit record
                 cur.execute("""
                     UPDATE gmap.fact_visit
                     SET location_id = %s
                     WHERE start_time = %s AND end_time = %s
-                """, (start_loc_id, 
+                """, (row['start_location_id'], 
                       int(row['start_time']), 
                       int(row['end_time'])))
             else:  # This is an activity record
@@ -264,26 +222,10 @@ def save_timeline_changes(df, _conn):
                     SET start_location_id = %s,
                         end_location_id = %s
                     WHERE start_time = %s AND end_time = %s
-                """, (start_loc_id, end_loc_id,
+                """, (row['start_location_id'], row['end_location_id'],
                       int(row['start_time']), int(row['end_time'])))
-=======
-            # Convert timestamps back to unix
-            start_time = int(row['start_time'].timestamp())
-            end_time = int(row['end_time'].timestamp())
-            
-            # Update fact_activity table
-            cur.execute("""
-                UPDATE gmap.fact_activity
-                SET start_time = %s,
-                    end_time = %s,
-                    vehicle_type = %s
-                WHERE start_time = %s AND end_time = %s
-            """, (start_time, end_time, row['vehicle_type'], 
-                  int(df.at[idx, '_original_start_time']), 
-                  int(df.at[idx, '_original_end_time'])))
-        
->>>>>>> parent of 1cd83a9 (wip)
         _conn.commit()
+    st.success("Changes saved successfully!")
 
 # Get data for selected date
 visit_df, activity_df = get_timeline_data(selected_date_str, conn)
@@ -411,7 +353,7 @@ timeline_df['_original_end_time'] = timeline_df['end_time']
 
 # Create editable data editor
 edited_df = st.data_editor(
-    timeline_df,  
+    timeline_df,
     hide_index=True,
     column_config={
         "start_time_human": st.column_config.DatetimeColumn(
@@ -432,36 +374,28 @@ edited_df = st.data_editor(
             "End Time (Unix)",
             disabled=True
         ),
-        "start_location_id": st.column_config.SelectboxColumn(
+        "start_location_id": st.column_config.NumberColumn(
             "Start Location ID",
-<<<<<<< HEAD
-            options=get_all_locations(conn),
             disabled=False,  # Allow editing
-=======
-            disabled=True
->>>>>>> parent of 1cd83a9 (wip)
+            min_value=1
         ),
         "start_location_name": st.column_config.TextColumn(
             "Start Location",
             disabled=True
         ),
-        "end_location_id": st.column_config.SelectboxColumn(
+        "end_location_id": st.column_config.NumberColumn(
             "End Location ID",
-<<<<<<< HEAD
-            options=get_all_locations(conn),
             disabled=False,  # Allow editing
-=======
-            disabled=True
->>>>>>> parent of 1cd83a9 (wip)
+            min_value=1
         ),
         "end_location_name": st.column_config.TextColumn(
             "End Location",
             disabled=True
         ),
-        "vehicle_type": st.column_config.SelectboxColumn(
+        "vehicle_type": st.column_config.TextColumn(
             "Vehicle Type",
-            options=["WALKING", "IN_PASSENGER_VEHICLE", "CYCLING", "FLYING"],
-            disabled=True
+            disabled=True,
+            width="medium"
         )
     },
     column_order=[
@@ -470,20 +404,20 @@ edited_df = st.data_editor(
         "start_location_id", "start_location_name",
         "end_location_id", "end_location_name",
         "vehicle_type"
-    ]
+    ],
+    key="timeline_editor"
 )
 
-# Check if the dataframe was edited
+# Update location names if IDs have changed
 if st.session_state.get("timeline_editor", {}).get("edited_rows"):
-<<<<<<< HEAD
     edited_rows = st.session_state["timeline_editor"]["edited_rows"]
     for idx, changes in edited_rows.items():
         if 'start_location_id' in changes:
-            new_name = get_location_name(extract_location_id(changes['start_location_id']), conn)
+            new_name = get_location_name(changes['start_location_id'], conn)
             if new_name:
                 edited_df.at[idx, 'start_location_name'] = new_name
         if 'end_location_id' in changes:
-            new_name = get_location_name(extract_location_id(changes['end_location_id']), conn)
+            new_name = get_location_name(changes['end_location_id'], conn)
             if new_name:
                 edited_df.at[idx, 'end_location_name'] = new_name
     
@@ -498,9 +432,6 @@ if st.session_state.get("timeline_editor", {}).get("edited_rows"):
     # Show save button with confirmation
     if st.button("Confirm and Save Changes"):
         save_timeline_changes(edited_df, conn)
-=======
-    st.button("Save Changes", on_click=lambda: save_timeline_changes(edited_df, conn))
->>>>>>> parent of 1cd83a9 (wip)
 
 st.subheader("Map View")
 folium_static(m)
