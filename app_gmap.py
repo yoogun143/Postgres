@@ -61,6 +61,8 @@ def get_timeline_data(date_str, _conn):
                 select 
                     a.start_time
                     ,a.end_time
+                    ,a.start_location_id
+                    ,a.end_location_id
                     ,c.lat as start_lat
                     ,c.lon as start_lon
                     ,d.lat as end_lat
@@ -93,6 +95,8 @@ def get_timeline_data(date_str, _conn):
                 group by 
                     a.start_time
                     ,a.end_time
+                    ,a.start_location_id
+                    ,a.end_location_id
                     ,c.lat
                     ,c.lon
                     ,d.lat
@@ -111,6 +115,7 @@ def get_timeline_data(date_str, _conn):
                 select 
                     a.start_time 
                     ,a.end_time 
+                    ,a.location_id
                     ,c.lat 
                     ,c.lon
                     ,c.location_name
@@ -135,6 +140,7 @@ def get_timeline_data(date_str, _conn):
                 group by 
                     a.start_time 
                     ,a.end_time 
+                    ,a.location_id
                     ,c.lat 
                     ,c.lon
                     ,c.location_name
