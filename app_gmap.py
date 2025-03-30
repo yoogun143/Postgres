@@ -172,6 +172,7 @@ def get_timeline_data(date_str, _conn):
 
     return visit, activity
 
+<<<<<<< HEAD
 # Function to get location name from ID
 def get_location_name(location_id, _conn):
     if location_id is None:
@@ -233,10 +234,13 @@ def generate_sql_statements(df, edited_rows):
         sql_statements.append(sql)
     return sql_statements
 
+=======
+>>>>>>> parent of 1cd83a9 (wip)
 # Function to save changes to database
 def save_timeline_changes(df, _conn):
     with _conn.cursor() as cur:
         for idx, row in df.iterrows():
+<<<<<<< HEAD
             # Extract location IDs from the formatted strings if needed
             start_loc_id = row['start_location_id_display'] if 'start_location_id_display' in row else row['start_location_id']
             if isinstance(start_loc_id, str) and ":" in start_loc_id:
@@ -262,8 +266,24 @@ def save_timeline_changes(df, _conn):
                     WHERE start_time = %s AND end_time = %s
                 """, (start_loc_id, end_loc_id,
                       int(row['start_time']), int(row['end_time'])))
+=======
+            # Convert timestamps back to unix
+            start_time = int(row['start_time'].timestamp())
+            end_time = int(row['end_time'].timestamp())
+            
+            # Update fact_activity table
+            cur.execute("""
+                UPDATE gmap.fact_activity
+                SET start_time = %s,
+                    end_time = %s,
+                    vehicle_type = %s
+                WHERE start_time = %s AND end_time = %s
+            """, (start_time, end_time, row['vehicle_type'], 
+                  int(df.at[idx, '_original_start_time']), 
+                  int(df.at[idx, '_original_end_time'])))
+        
+>>>>>>> parent of 1cd83a9 (wip)
         _conn.commit()
-    st.success("Changes saved successfully!")
 
 # Get data for selected date
 visit_df, activity_df = get_timeline_data(selected_date_str, conn)
@@ -391,7 +411,7 @@ timeline_df['_original_end_time'] = timeline_df['end_time']
 
 # Create editable data editor
 edited_df = st.data_editor(
-    timeline_df,
+    timeline_df,  
     hide_index=True,
     column_config={
         "start_time_human": st.column_config.DatetimeColumn(
@@ -414,8 +434,12 @@ edited_df = st.data_editor(
         ),
         "start_location_id": st.column_config.SelectboxColumn(
             "Start Location ID",
+<<<<<<< HEAD
             options=get_all_locations(conn),
             disabled=False,  # Allow editing
+=======
+            disabled=True
+>>>>>>> parent of 1cd83a9 (wip)
         ),
         "start_location_name": st.column_config.TextColumn(
             "Start Location",
@@ -423,17 +447,21 @@ edited_df = st.data_editor(
         ),
         "end_location_id": st.column_config.SelectboxColumn(
             "End Location ID",
+<<<<<<< HEAD
             options=get_all_locations(conn),
             disabled=False,  # Allow editing
+=======
+            disabled=True
+>>>>>>> parent of 1cd83a9 (wip)
         ),
         "end_location_name": st.column_config.TextColumn(
             "End Location",
             disabled=True
         ),
-        "vehicle_type": st.column_config.TextColumn(
+        "vehicle_type": st.column_config.SelectboxColumn(
             "Vehicle Type",
-            disabled=True,
-            width="medium"
+            options=["WALKING", "IN_PASSENGER_VEHICLE", "CYCLING", "FLYING"],
+            disabled=True
         )
     },
     column_order=[
@@ -442,12 +470,12 @@ edited_df = st.data_editor(
         "start_location_id", "start_location_name",
         "end_location_id", "end_location_name",
         "vehicle_type"
-    ],
-    key="timeline_editor"
+    ]
 )
 
-# Update location names if IDs have changed
+# Check if the dataframe was edited
 if st.session_state.get("timeline_editor", {}).get("edited_rows"):
+<<<<<<< HEAD
     edited_rows = st.session_state["timeline_editor"]["edited_rows"]
     for idx, changes in edited_rows.items():
         if 'start_location_id' in changes:
@@ -470,6 +498,9 @@ if st.session_state.get("timeline_editor", {}).get("edited_rows"):
     # Show save button with confirmation
     if st.button("Confirm and Save Changes"):
         save_timeline_changes(edited_df, conn)
+=======
+    st.button("Save Changes", on_click=lambda: save_timeline_changes(edited_df, conn))
+>>>>>>> parent of 1cd83a9 (wip)
 
 st.subheader("Map View")
 folium_static(m)
