@@ -11,6 +11,7 @@ calc_price_pkg.sql
 test_raw.ipynb
 .env
 tables.yaml
+run_gmap.py
 
 # Folder 
 __pycache__/
