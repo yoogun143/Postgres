@@ -12,6 +12,7 @@ test_raw.ipynb
 .env
 tables.yaml
 run_gmap.py
+.DS_Store
 
 # Folder 
 __pycache__/

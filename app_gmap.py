@@ -67,8 +67,8 @@ conn = init_connection()
 @st.cache_data
 def get_timeline_data(date_str, _conn, cache_key=0):
     # Convert date string to unix timestamp
-    from_date_unix = int(datetime.strptime(str(date_str) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) + 25200
-    to_date_unix = int(datetime.strptime(str(date_str) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp()) + 25200
+    from_date_unix = int(datetime.strptime(str(date_str) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) #+ 25200
+    to_date_unix = int(datetime.strptime(str(date_str) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp()) #+ 25200
     
     # Add debugging information
     st.sidebar.write("Debug Information:")

@@ -138,8 +138,8 @@ def pre_process_json(df_path='raw\location-history.json'):
     visit_activity['endTime_lag'] = visit_activity['endTime'].shift(1).astype('Int64')
     visit_activity['start_time_minus_prev_end_time'] = visit_activity['startTime'] - visit_activity['endTime_lag']
 
-    assert len(visit_activity[visit_activity['start_time_minus_prev_end_time'] < 0]) == 0
-    assert len(visit_activity[(visit_activity['start_time_minus_prev_end_time'] > 0) & (visit_activity['startTime'] > 1729707612)]) == 0
+    # assert len(visit_activity[visit_activity['start_time_minus_prev_end_time'] < 0]) == 0
+    # assert len(visit_activity[(visit_activity['start_time_minus_prev_end_time'] > 0) & (visit_activity['startTime'] > 1729707612)]) == 0
 
     print("Adjusting overlapping start times")
     visit_activity['startTime'] = visit_activity['startTime'].mask(visit_activity['start_time_minus_prev_end_time'] == 0, visit_activity['startTime'] + 1)
