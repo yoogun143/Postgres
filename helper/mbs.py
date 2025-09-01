@@ -32,7 +32,7 @@ def get_order_merged(fk_date: str) -> pd.DataFrame:
 
     # Fill leading zeros in accountNo
     order['account'] = order['account'].apply(lambda x: str(x).zfill(7))
-    deal['account'] = deal['account'].apply(lambda x: str(x).zfill(7))
+    deal['account'] = deal['accountCode'].apply(lambda x: str(x).zfill(7))
 
     # Merge order and deal data
     order_merged = pd.merge(order, deal, how='left', on='orderNo')
