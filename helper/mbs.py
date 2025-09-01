@@ -26,13 +26,17 @@ def get_order_merged(fk_date: str) -> pd.DataFrame:
     order = order.drop(columns=['rowNo'])
     deal = deal.drop(columns=['rowNo'])
 
+    # Drop 'fk_date' column
+    order = order.drop(columns=['fk_date'])
+    deal = deal.drop(columns=['fk_date'])
+
     # Convert 'orderNo' column to string type
     order['orderNo'] = order['orderNo'].astype(str)
     deal['orderNo'] = deal['orderNo'].astype(str)
 
     # Fill leading zeros in accountNo
     order['account'] = order['account'].apply(lambda x: str(x).zfill(7))
-    deal['account'] = deal['accountCode'].apply(lambda x: str(x).zfill(7))
+    deal['accountCode'] = deal['accountCode'].apply(lambda x: str(x).zfill(7))
 
     # Merge order and deal data
     order_merged = pd.merge(order, deal, how='left', on='orderNo')
@@ -158,9 +162,6 @@ def get_stock_statement(fk_date:str) -> pd.DataFrame:
     """
     stock_statement_path = f"raw/mbs_fact_stock_statement_{fk_date}.csv"
     fact_stock_statement = pd.read_csv(stock_statement_path).drop_duplicates()
-
-    # Add leading zeros to accountNo
-    fact_stock_statement['accountNo'] = fact_stock_statement['accountNo'].apply(lambda x: str(x).zfill(7))
     
     # Convert the details column to a list of dictionaries
     fact_stock_statement["details"] = fact_stock_statement["details"].apply(ast.literal_eval)
@@ -170,6 +171,9 @@ def get_stock_statement(fk_date:str) -> pd.DataFrame:
     
     # Normalize the dictionaries
     fact_stock_statement = pd.json_normalize(fact_stock_statement['details'])
+
+    # Add leading zeros to accountCode
+    fact_stock_statement['accountCode'] = fact_stock_statement['accountCode'].apply(lambda x: str(x).zfill(7))
 
     # Drop the rowNum column
     fact_stock_statement = fact_stock_statement.drop(columns=['rowNum'])
