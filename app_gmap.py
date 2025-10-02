@@ -235,7 +235,8 @@ def generate_sql_statements(df, edited_rows):
         else:  # This is an activity record
             sql = f"""UPDATE gmap.fact_activity
                      SET start_location_id = {row['start_location_id']},
-                         end_location_id = {row['end_location_id']}
+                         end_location_id = {row['end_location_id']},
+                         vehicle_type = '{row['vehicle_type']}'
                      WHERE start_time = {int(row['start_time'])} 
                      AND end_time = {int(row['end_time'])};"""
         sql_statements.append(sql)
@@ -257,10 +258,14 @@ def save_timeline_changes(df, _conn):
                 cur.execute("""
                     UPDATE gmap.fact_activity
                     SET start_location_id = %s,
-                        end_location_id = %s
+                        end_location_id = %s,
+                        vehicle_type = %s
                     WHERE start_time = %s AND end_time = %s
-                """, (row['start_location_id'], row['end_location_id'],
-                      int(row['start_time']), int(row['end_time'])))
+                """, (row['start_location_id'], 
+                      row['end_location_id'],
+                      row['vehicle_type'],
+                      int(row['start_time']), 
+                      int(row['end_time'])))
         _conn.commit()
     st.success("Changes saved successfully!")
 
@@ -475,7 +480,7 @@ edited_df = st.data_editor(
         ),
         "vehicle_type": st.column_config.TextColumn(
             "Vehicle Type",
-            disabled=True,
+            disabled=False,  # Allow editing
             width="medium"
         )
     },
