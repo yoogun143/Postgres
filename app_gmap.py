@@ -269,6 +269,22 @@ def save_timeline_changes(df, _conn):
         _conn.commit()
     st.success("Changes saved successfully!")
 
+# Function to delete a timeline row
+def delete_timeline_row(row, _conn):
+    with _conn.cursor() as cur:
+        if pd.isna(row['end_location_id']):  # Visit record
+            cur.execute("""
+                DELETE FROM gmap.fact_visit
+                WHERE start_time = %s AND end_time = %s
+            """, (int(row['_original_start_time']), int(row['_original_end_time'])))
+        else:  # Activity record
+            cur.execute("""
+                DELETE FROM gmap.fact_activity
+                WHERE start_time = %s AND end_time = %s
+            """, (int(row['_original_start_time']), int(row['_original_end_time'])))
+        _conn.commit()
+    st.success("Row deleted successfully!")
+
 # Function to get all locations
 def get_all_locations_data(_conn):
     with _conn.cursor() as cur:
@@ -493,6 +509,22 @@ edited_df = st.data_editor(
     ],
     key="timeline_editor"
 )
+
+st.subheader("Delete Row")
+
+if len(edited_df) > 0:
+    row_to_delete = st.number_input(
+        "Enter row number to delete (starting from 0)", 
+        min_value=0, 
+        max_value=len(edited_df)-1, 
+        step=1
+    )
+
+    if st.button("🗑️ Delete Selected Row"):
+        delete_timeline_row(edited_df.iloc[row_to_delete], conn)
+        st.rerun()
+else:
+    st.info("No rows available to delete.")
 
 # Update location names if IDs have changed
 if st.session_state.get("timeline_editor", {}).get("edited_rows"):
