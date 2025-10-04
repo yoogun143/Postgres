@@ -67,8 +67,8 @@ conn = init_connection()
 @st.cache_data
 def get_timeline_data(date_str, _conn, cache_key=0):
     # Convert date string to unix timestamp
-    from_date_unix = int(datetime.strptime(str(date_str) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) + 25200
-    to_date_unix = int(datetime.strptime(str(date_str) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp()) + 25200
+    from_date_unix = int(datetime.strptime(str(date_str) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) #+ 25200
+    to_date_unix = int(datetime.strptime(str(date_str) + ' 23:59:59', '%Y%m%d %H:%M:%S').timestamp()) #+ 25200
     
     # Add debugging information
     st.sidebar.write("Debug Information:")
@@ -94,6 +94,7 @@ def get_timeline_data(date_str, _conn, cache_key=0):
                     ,c.category as start_category
                     ,d.location_name as end_location_name
                     ,d.category as end_category
+                    ,a.note
                     ,case 
                         when json_agg(
                             json_build_object('txtime', b.txtime, 'lat', b.lat, 'lon', b.lon)
@@ -128,6 +129,7 @@ def get_timeline_data(date_str, _conn, cache_key=0):
                     ,c.category
                     ,d.location_name
                     ,d.category
+                    ,a.note
                 """
                 
         # Show the SQL query for debugging
@@ -150,6 +152,7 @@ def get_timeline_data(date_str, _conn, cache_key=0):
                     ,c.lon
                     ,c.location_name
                     ,c.category
+                    ,a.note
                     ,case 
                         when json_agg(
                             json_build_object('txtime', b.txtime, 'lat', b.lat, 'lon', b.lon)
@@ -175,6 +178,7 @@ def get_timeline_data(date_str, _conn, cache_key=0):
                     ,c.lon
                     ,c.location_name
                     ,c.category
+                    ,a.note
                 """
                 
         with st.sidebar.expander("Visit Query"):
@@ -229,13 +233,16 @@ def generate_sql_statements(df, edited_rows):
         row = df.iloc[idx]
         if pd.isna(row['end_location_id']):  # This is a visit record
             sql = f"""UPDATE gmap.fact_visit
-                     SET location_id = {row['start_location_id']}
+                     SET location_id = {row['start_location_id']},
+                         note = '{row['note']}'
                      WHERE start_time = {int(row['start_time'])} 
                      AND end_time = {int(row['end_time'])};"""
         else:  # This is an activity record
             sql = f"""UPDATE gmap.fact_activity
                      SET start_location_id = {row['start_location_id']},
-                         end_location_id = {row['end_location_id']}
+                         end_location_id = {row['end_location_id']},
+                         vehicle_type = '{row['vehicle_type']}',
+                         note = '{row['note']}'
                      WHERE start_time = {int(row['start_time'])} 
                      AND end_time = {int(row['end_time'])};"""
         sql_statements.append(sql)
@@ -248,21 +255,45 @@ def save_timeline_changes(df, _conn):
             if pd.isna(row['end_location_id']):  # This is a visit record
                 cur.execute("""
                     UPDATE gmap.fact_visit
-                    SET location_id = %s
+                    SET location_id = %s,
+                        note = %s
                     WHERE start_time = %s AND end_time = %s
                 """, (row['start_location_id'], 
+                      row['note'],
                       int(row['start_time']), 
                       int(row['end_time'])))
             else:  # This is an activity record
                 cur.execute("""
                     UPDATE gmap.fact_activity
                     SET start_location_id = %s,
-                        end_location_id = %s
+                        end_location_id = %s,
+                        vehicle_type = %s,
+                        note = %s
                     WHERE start_time = %s AND end_time = %s
-                """, (row['start_location_id'], row['end_location_id'],
-                      int(row['start_time']), int(row['end_time'])))
+                """, (row['start_location_id'], 
+                      row['end_location_id'],
+                      row['vehicle_type'],
+                      row['note'],
+                      int(row['start_time']), 
+                      int(row['end_time'])))
         _conn.commit()
     st.success("Changes saved successfully!")
+
+# Function to delete a timeline row
+def delete_timeline_row(row, _conn):
+    with _conn.cursor() as cur:
+        if pd.isna(row['end_location_id']):  # Visit record
+            cur.execute("""
+                DELETE FROM gmap.fact_visit
+                WHERE start_time = %s AND end_time = %s
+            """, (int(row['_original_start_time']), int(row['_original_end_time'])))
+        else:  # Activity record
+            cur.execute("""
+                DELETE FROM gmap.fact_activity
+                WHERE start_time = %s AND end_time = %s
+            """, (int(row['_original_start_time']), int(row['_original_end_time'])))
+        _conn.commit()
+    st.success("Row deleted successfully!")
 
 # Function to get all locations
 def get_all_locations_data(_conn):
@@ -410,23 +441,32 @@ m.fit_bounds(m.get_bounds())
 st.subheader("Timeline")
 
 # Create combined timeline dataframe
-timeline_df = pd.DataFrame(
-    np.concatenate([
-        activity_df[['start_time_human', 'end_time_human', 'start_time', 'end_time', 
-                    'start_location_id', 'start_location_name', 
-                    'end_location_id', 'end_location_name', 'vehicle_type']].to_numpy(),
-        visit_df[['start_time_human', 'end_time_human', 'start_time', 'end_time', 
-                 'location_id', 'location_name']].assign(
-                     end_location_id=None, 
-                     end_location_name=None, 
-                     vehicle_type=None).rename(
-                         columns={'location_id': 'start_location_id', 
-                                'location_name': 'start_location_name'}).to_numpy()
-    ]),
-    columns=['start_time_human', 'end_time_human', 'start_time', 'end_time', 
-             'start_location_id', 'start_location_name', 
-             'end_location_id', 'end_location_name', 'vehicle_type']
-).sort_values('start_time')
+# Ensure activity_df has the right order
+activity_df_aligned = activity_df[[
+    'start_time_human', 'end_time_human', 'start_time', 'end_time',
+    'start_location_id', 'start_location_name',
+    'end_location_id', 'end_location_name',
+    'vehicle_type', 'note'
+]]
+
+# Add missing columns for visit_df, then reorder
+visit_df_aligned = visit_df.rename(columns={
+    'location_id': 'start_location_id',
+    'location_name': 'start_location_name'
+}).assign(
+    end_location_id=None,
+    end_location_name=None,
+    vehicle_type=None
+)[[
+    'start_time_human', 'end_time_human', 'start_time', 'end_time',
+    'start_location_id', 'start_location_name',
+    'end_location_id', 'end_location_name',
+    'vehicle_type', 'note'
+]]
+
+# Combine both
+timeline_df = pd.concat([activity_df_aligned, visit_df_aligned], ignore_index=True) \
+                .sort_values('start_time')
 
 # Store original timestamps for reference
 timeline_df['_original_start_time'] = timeline_df['start_time']
@@ -475,7 +515,12 @@ edited_df = st.data_editor(
         ),
         "vehicle_type": st.column_config.TextColumn(
             "Vehicle Type",
-            disabled=True,
+            disabled=False,  # Allow editing
+            width="medium"
+        ),
+        "note": st.column_config.TextColumn(
+            "Note",
+            disabled=False,  # Allow editing
             width="medium"
         )
     },
@@ -484,7 +529,7 @@ edited_df = st.data_editor(
         "start_time", "end_time",
         "start_location_id", "start_location_name",
         "end_location_id", "end_location_name",
-        "vehicle_type"
+        "vehicle_type", "note"
     ],
     key="timeline_editor"
 )
@@ -515,7 +560,7 @@ if st.session_state.get("timeline_editor", {}).get("edited_rows"):
         save_timeline_changes(edited_df, conn)
 
 st.subheader("Map View")
-folium_static(m)
+folium_static(m, width=1500, height=600)  # width=None expands to container width
 
 # Add a compact location management section at the bottom
 with st.expander("Location Management", expanded=False):
@@ -587,3 +632,18 @@ with st.expander("Location Management", expanded=False):
                     st.rerun()
                 else:
                     st.error("Name required")
+
+with st.expander("Delete Row", expanded=False):
+    if len(edited_df) > 0:
+        row_to_delete = st.number_input(
+            "Enter row number to delete (starting from 0)", 
+            min_value=0, 
+            max_value=len(edited_df)-1, 
+            step=1
+        )
+
+        if st.button("🗑️ Delete Selected Row"):
+            delete_timeline_row(edited_df.iloc[row_to_delete], conn)
+            st.rerun()
+    else:
+        st.info("No rows available to delete.")

@@ -11,4 +11,5 @@ CREATE TABLE IF NOT EXISTS %(schema)s.%(table)s
     ,vehicle_type	        varchar(50)
     ,probability	        decimal(9,6)
     ,distance_meters	    decimal(20,2)
+    ,note                 text  
   ); 
