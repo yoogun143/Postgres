@@ -11,7 +11,7 @@ st.set_page_config(page_title="Screentime Analytics", layout="wide")
 st.title("📱 Screentime Analytics")
 
 # Load data from database
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=600)  # Cache for 10 minutes
 def load_screentime_data():
     config = load_config()
     with psycopg2.connect(**config) as conn:
@@ -28,6 +28,12 @@ def load_screentime_data():
             """)
             df = pd.DataFrame(cur.fetchall(), columns=[desc[0] for desc in cur.description])
     return df
+
+# Add refresh button in sidebar
+with st.sidebar:
+    if st.button("🔄 Refresh Data", help="Clear cache and reload from database"):
+        st.cache_data.clear()
+        st.rerun()
 
 # Load and prepare data
 df = load_screentime_data()
@@ -54,6 +60,13 @@ selected_date = st.sidebar.selectbox(
 # Filter data for selected date
 filtered_df = df[df['start_date'] == selected_date].copy()
 filtered_df['device_model'] = filtered_df['device_model'].fillna('Unknown Device')
+
+# Show data status
+with st.sidebar:
+    st.divider()
+    latest_date = df['start_date'].max()
+    st.caption(f"📊 Latest data: {latest_date}")
+    st.caption(f"📈 Total records: {len(df):,}")
 
 # Display overview metrics
 col1, col2, col3 = st.columns(3)
