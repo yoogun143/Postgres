@@ -199,6 +199,8 @@ def get_timeline_data(date_str, _conn, cache_key=0):
         'motorcycling': 'magenta',
         'in train': 'yellow',
         'in subway': 'cyan',
+        'cycling': 'orange',
+        'taxi': 'purple',
         'unknown': 'black'
     })
     activity['start_time_human'] = pd.to_datetime(activity['start_time'], unit='s')

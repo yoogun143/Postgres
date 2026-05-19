@@ -27,7 +27,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Streamlit Application
+  # Streamlit Application - GMap
   streamlit:
     build:
       context: .
@@ -46,6 +46,27 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
+
+  # Streamlit Application - Screentime
+  screentime:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: screentime_streamlit
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8502:8501"
+    volumes:
+      - ..:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    command: streamlit run screentime_app.py --server.address=0.0.0.0
 
   # adminer:
   #   image: adminer

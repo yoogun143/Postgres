@@ -9,9 +9,9 @@ warnings.simplefilter(action='ignore', category=(SettingWithCopyWarning))
 if __name__ == '__main__':
     # Constants
     schema = 'gmap'
-    df_path = 'raw/location-history-20250930.json'
-    from_date = 20250901
-    to_date = 20250930
+    df_path = 'raw/location-history-20251231.json'
+    from_date = 20251201
+    to_date = 20251231
 
     # Convert dates to UNIX timestamps
     from_date_unix = int(datetime.strptime(str(from_date) + ' 00:00:00', '%Y%m%d %H:%M:%S').timestamp()) + 25200 # Add 7 hours
