@@ -107,6 +107,7 @@ def get_last_created_at(schema: str = 'apple', table: str = 'fact_screentime') -
 def get_available_devices() -> pd.DataFrame:
     """
     Retrieves all available devices and their data counts from the SQLite database.
+    Includes both /app/usage and /app/intents records.
 
     Returns
     -------
@@ -122,16 +123,16 @@ def get_available_devices() -> pd.DataFrame:
         query = """
         SELECT
             ZSOURCE.ZDEVICEID AS "device_id",
-            ZMODEL AS "device_model",
+            ZSYNCPEER.ZMODEL AS "device_model",
             COUNT(*) as "record_count"
         FROM
             ZOBJECT
             LEFT JOIN ZSOURCE ON ZOBJECT.ZSOURCE = ZSOURCE.Z_PK
             LEFT JOIN ZSYNCPEER ON ZSOURCE.ZDEVICEID = ZSYNCPEER.ZDEVICEID
         WHERE
-            ZSTREAMNAME = "/app/usage"
+            ZSTREAMNAME IN ("/app/usage", "/app/intents")
         GROUP BY
-            ZSOURCE.ZDEVICEID, ZMODEL
+            ZSOURCE.ZDEVICEID, ZSYNCPEER.ZMODEL
         ORDER BY
             COUNT(*) DESC
         """
@@ -185,6 +186,7 @@ def sqlite_to_dataframe(last_created_at: float) -> pd.DataFrame:
         cur = con.cursor()
 
         # Execute the SQL query to fetch data from ALL devices
+        # Fetches both /app/usage and /app/intents
         # Modified from https://rud.is/b/2019/10/28/spelunking-macos-screentime-app-usage-with-r/
         query = """
         SELECT
@@ -195,7 +197,8 @@ def sqlite_to_dataframe(last_created_at: float) -> pd.DataFrame:
             (ZOBJECT.ZCREATIONDATE + 978307200) as "created_at",
             ZOBJECT.ZSECONDSFROMGMT AS "tz",
             ZSOURCE.ZDEVICEID AS "device_id",
-            ZMODEL AS "device_model"
+            ZSYNCPEER.ZMODEL AS "device_model",
+            ZOBJECT.ZSTREAMNAME AS "record_type"
         FROM
             ZOBJECT
             LEFT JOIN
@@ -208,7 +211,7 @@ def sqlite_to_dataframe(last_created_at: float) -> pd.DataFrame:
             ZSYNCPEER
             ON ZSOURCE.ZDEVICEID = ZSYNCPEER.ZDEVICEID
         WHERE
-            ZSTREAMNAME = "/app/usage" AND
+            (ZOBJECT.ZSTREAMNAME = "/app/usage" OR ZOBJECT.ZSTREAMNAME = "/app/intents") AND
             (ZOBJECT.ZCREATIONDATE + 978307200) > ? AND
             ZOBJECT.ZVALUESTRING IS NOT NULL AND
             ZOBJECT.ZVALUESTRING != ''
@@ -321,7 +324,7 @@ if __name__ == '__main__':
     print(f"\n🔄 Fetching screentime data since: {pd.Timestamp(last_created_at, unit='s')}")
     df = sqlite_to_dataframe(last_created_at)
 
-    # Show summary by device
+    # Show summary by device and record type
     print(f"\n📊 Data summary by device:")
     device_summary = df.groupby('device_model').agg({
         'app': 'count',
@@ -329,5 +332,13 @@ if __name__ == '__main__':
     }).rename(columns={'app': 'records', 'usage_time': 'total_usage_seconds'})
     device_summary['total_usage_hours'] = device_summary['total_usage_seconds'] / 3600
     print(device_summary)
+
+    print(f"\n📊 Data summary by record type:")
+    record_summary = df.groupby('record_type').agg({
+        'app': 'count',
+        'usage_time': 'sum'
+    }).rename(columns={'app': 'records', 'usage_time': 'total_usage_seconds'})
+    record_summary['total_usage_hours'] = record_summary['total_usage_seconds'] / 3600
+    print(record_summary)
 
     dataframe_to_postgres(df,schema=schema,table=table)

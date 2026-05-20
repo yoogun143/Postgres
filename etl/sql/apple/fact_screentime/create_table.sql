@@ -8,4 +8,5 @@ CREATE TABLE IF NOT EXISTS %(schema)s.%(table)s
     ,tz	           decimal(38,10)
     ,device_id	   varchar(500)
     ,device_model	 varchar(500)
+    ,record_type	 varchar(50)
   ); 

@@ -22,7 +22,9 @@ def load_screentime_data():
                     to_timestamp(end_time+tz) AT TIME ZONE 'UTC' as end_time,
                     app,
                     device_id,
-                    device_model
+                    device_model,
+                    record_type,
+                    usage_time
                 FROM apple.fact_screentime
                 ORDER BY start_time DESC
             """)
@@ -42,15 +44,29 @@ df = load_screentime_data()
 df['start_time'] = pd.to_datetime(df['start_time'])
 df['end_time'] = pd.to_datetime(df['end_time'])
 
-# Calculate time used (in minutes)
-df['time_used'] = (df['end_time'] - df['start_time']).dt.total_seconds() / 60
+# Calculate time used (in minutes) - use provided usage_time if available
+df['time_used'] = df['usage_time'] / 60 if 'usage_time' in df.columns and df['usage_time'].notna().any() else (df['end_time'] - df['start_time']).dt.total_seconds() / 60
 
 # Extract date for filtering
 df['start_date'] = df['start_time'].dt.date
 
-# Sidebar for date selection
+# Sidebar for filtering
 st.sidebar.header("Filters")
-available_dates = sorted(df['start_date'].unique(), reverse=True)
+
+# Record type filter
+record_types = sorted(df['record_type'].unique())
+selected_record_type = st.sidebar.multiselect(
+    "Data Type",
+    record_types,
+    default=record_types,
+    help="Select which data types to display"
+)
+
+# Filter by record type
+df_filtered_type = df[df['record_type'].isin(selected_record_type)] if selected_record_type else df
+
+# Date selection
+available_dates = sorted(df_filtered_type['start_date'].unique(), reverse=True)
 selected_date = st.sidebar.selectbox(
     "Select Date",
     available_dates,
@@ -58,15 +74,15 @@ selected_date = st.sidebar.selectbox(
 )
 
 # Filter data for selected date
-filtered_df = df[df['start_date'] == selected_date].copy()
+filtered_df = df_filtered_type[df_filtered_type['start_date'] == selected_date].copy()
 filtered_df['device_model'] = filtered_df['device_model'].fillna('Unknown Device')
 
 # Show data status
 with st.sidebar:
     st.divider()
-    latest_date = df['start_date'].max()
+    latest_date = df_filtered_type['start_date'].max()
     st.caption(f"📊 Latest data: {latest_date}")
-    st.caption(f"📈 Total records: {len(df):,}")
+    st.caption(f"📈 Total records: {len(df_filtered_type):,}")
 
 # Display overview metrics
 col1, col2, col3 = st.columns(3)
@@ -81,7 +97,7 @@ with col3:
     st.metric("Devices", unique_devices)
 
 # Tab layout
-tab1, tab2, tab3 = st.tabs(["Timeline", "Apps", "Devices"])
+tab1, tab2, tab3, tab4 = st.tabs(["Timeline", "Apps", "Devices", "Intents"])
 
 with tab1:
     st.subheader("App Usage Timeline")
@@ -159,11 +175,83 @@ with tab3:
     else:
         st.info("No data available for selected date")
 
+with tab4:
+    st.subheader("App Intents & Events")
+
+    # Filter for intents only
+    intents_df = filtered_df[filtered_df['record_type'] == '/app/intents']
+
+    if len(intents_df) > 0:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Intent count by app
+            intent_count = intents_df.groupby('app').size().reset_index(name='count').sort_values(by='count', ascending=False)
+            if len(intent_count) > 15:
+                intent_count = intent_count.head(15)
+
+            fig_intents = px.bar(
+                intent_count,
+                x='count',
+                y='app',
+                orientation='h',
+                title=f'App Intents on {selected_date} (Top 15)',
+                labels={'count': 'Number of Events', 'app': 'App/Intent'},
+                color='count',
+                color_continuous_scale='Purples'
+            )
+            fig_intents.update_layout(height=500, showlegend=False)
+            st.plotly_chart(fig_intents, use_container_width=True)
+
+        with col2:
+            # Intents by device
+            device_intents = intents_df.groupby('device_model').size().reset_index(name='count').sort_values(by='count', ascending=False)
+            device_intents['device_model'] = device_intents['device_model'].fillna('Unknown Device')
+
+            fig_device_intents = px.pie(
+                device_intents,
+                values='count',
+                names='device_model',
+                title=f'Intents by Device on {selected_date}'
+            )
+            fig_device_intents.update_layout(height=500)
+            st.plotly_chart(fig_device_intents, use_container_width=True)
+
+        # Intent timeline
+        st.subheader("Intent Timeline")
+        top_intents = intent_count.head(10)['app'].tolist()
+        timeline_intents = intents_df[intents_df['app'].isin(top_intents)]
+
+        if len(timeline_intents) > 0:
+            fig_timeline = px.timeline(
+                timeline_intents,
+                x_start='start_time',
+                x_end='end_time',
+                y='app',
+                color='device_model',
+                title=f'Intent Timeline on {selected_date} (Top 10 Intents)',
+                hover_data={'device_model': True}
+            )
+            fig_timeline.update_yaxes(categoryorder='total ascending')
+            fig_timeline.update_layout(height=500)
+            st.plotly_chart(fig_timeline, use_container_width=True)
+
+        # Data table
+        st.subheader("Intent Details")
+        intent_details = intents_df[['app', 'device_model', 'start_time']].copy()
+        intent_details['start_time'] = intent_details['start_time'].dt.strftime('%H:%M:%S')
+        st.dataframe(
+            intent_details.sort_values('start_time', ascending=False).reset_index(drop=True),
+            use_container_width=True
+        )
+    else:
+        st.info("No intent data available for selected date")
+
 # Bottom section - Date range overview
 st.divider()
 st.subheader("📊 Overall Trends")
 
-time_per_day = df.groupby('start_date')['time_used'].sum().reset_index()
+time_per_day = df_filtered_type.groupby('start_date')['time_used'].sum().reset_index()
 time_per_day['day_of_week'] = pd.to_datetime(time_per_day['start_date']).dt.day_name()
 time_per_day['is_weekend'] = time_per_day['day_of_week'].isin(['Saturday', 'Sunday'])
 
